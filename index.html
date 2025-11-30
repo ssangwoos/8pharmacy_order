@@ -11,18 +11,25 @@
 
     <header class="top-header">
         <div class="logo">PharmaOrder OS</div>
+        
         <div class="search-bar">
-            <input id="main-search-input" type="text" placeholder="약품명, 성분명, 제약사 검색 (Enter)">
+            <input id="main-search-input" type="text" placeholder="🔍 약품명, 성분명, 제약사 검색 (Enter)">
         </div>
+
         <div class="user-info">관리약사: 홍길동 님 <span style="color:#27ae60">● Online</span></div>
     </header>
 
     <div class="main-container">
+        
         <nav class="panel menu-sidebar">
             <div class="panel-header">MENU</div>
-            <div class="menu-item active" data-target="order-book">
-                📝 주문장<span class="menu-sub-text">(Order Book)</span>
+            
+            <div class="pharmacy-brand-area">
+                <div class="brand-logo-placeholder">🏥</div> 
+                <div class="brand-name-text">에이트약국</div>
             </div>
+
+            <div class="menu-item active" data-target="order-book">📝 주문장<span class="menu-sub-text">(Order Book)</span></div>
             <div class="menu-item" data-target="order-mgmt">통합 주문 관리</div>
             <div class="menu-item" data-target="history-mgmt">주문 기록 관리</div>
             <div class="menu-item" data-target="supplier-mgmt">거래처 관리</div>
@@ -34,7 +41,7 @@
         <div id="page-order-book" class="content-group" style="display: flex; flex-direction: column; padding: 20px; overflow-y: auto;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; border-bottom:2px solid #333; padding-bottom:10px;">
                 <h2>📝 주문 요청 현황 (Order Note)</h2>
-                </div>
+            </div>
             <div id="photo-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 15px;">
                 <div style="grid-column: 1 / -1; text-align: center; padding: 50px; color: #aaa;">불러오는 중...</div>
             </div>
@@ -67,7 +74,7 @@
                                 <label style="font-weight:bold; color:#555; font-size:0.9rem; display:block; margin-bottom:5px;">수량</label>
                                 <div style="display:flex; align-items:center; width:100%;">
                                     <button id="qty-minus" style="width:40px; height:40px; border:1px solid #ddd; background:#f9f9f9; cursor:pointer;">-</button>
-                                    <input id="order-qty" type="number" value="1" min="1" style="width:100%; text-align:center; height:40px; border-top:1px solid #ddd; border-bottom:1px solid #ddd; border-left:none; border-right:none; font-size:1.1rem; font-weight:bold;">
+                                    <input id="order-qty" type="number" value="1" min="1" style="width:100%; text-align:center; height:40px; border:1px solid #ddd; border-bottom:1px solid #ddd; border-left:none; border-right:none; font-size:1.1rem; font-weight:bold;">
                                     <button id="qty-plus" style="width:40px; height:40px; border:1px solid #ddd; background:#f9f9f9; cursor:pointer;">+</button>
                                 </div>
                             </div>
@@ -82,7 +89,8 @@
             </main>
             <aside class="panel cart-area">
                 <div class="panel-header">장바구니 (Cart) <span id="cart-count" style="background:#e74c3c; color:white; border-radius:50%; padding:2px 6px; font-size:0.8rem;">0</span></div>
-                <div id="photo-request-queue"></div> <div id="undo-area" style="display:none; background:#333; color:white; padding:10px; text-align:center; font-size:0.9rem;">삭제되었습니다. <button id="btn-undo" style="margin-left:10px; border:1px solid #aaa; background:transparent; color:#fff; cursor:pointer;">실행취소</button></div>
+                <div id="photo-request-queue"></div>
+                <div id="undo-area" style="display:none; background:#333; color:white; padding:10px; text-align:center; font-size:0.9rem;">삭제되었습니다. <button id="btn-undo" style="margin-left:10px; border:1px solid #aaa; background:transparent; color:#fff; cursor:pointer;">실행취소</button></div>
                 <div id="cart-list"><div style="padding:20px; text-align:center; color:#ccc;">비어있음</div></div>
                 <div class="cart-total">
                     <div style="display:flex; justify-content:space-between; margin-bottom:10px;"><span>총 주문금액</span><strong id="cart-total-price" style="color:#e74c3c; font-size:1.2rem;">0원</strong></div>
@@ -111,10 +119,7 @@
         <div id="page-supplier-mgmt" class="content-group" style="display: none; padding: 20px; flex-grow: 1; flex-direction:column;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:2px solid #333; padding-bottom:10px;"><h2>🏢 거래처 리스트 (<span id="sup-total-count">0</span>)</h2><button id="btn-new-supplier" style="padding:8px 15px; background:#2980b9; color:white; border:none; border-radius:4px; cursor:pointer;">+ 신규 등록</button></div>
             <div style="display:flex; gap:20px; flex-grow:1; overflow:hidden;">
-                <div class="supplier-list-wrapper" style="flex:1; background:#fff; border:1px solid #ddd; border-radius:8px; display:flex; flex-direction:column;">
-                    <div style="padding:15px; border-bottom:1px solid #eee; background:#f9f9f9;"><input type="text" id="supplier-search" placeholder="검색..." style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;"></div>
-                    <div id="supplier-list" style="flex:1; overflow-y:auto; padding:15px; display:flex; flex-direction:column; gap:8px;"><div style="text-align:center; padding:20px; color:#aaa;">로딩중...</div></div>
-                </div>
+                <div class="supplier-list-wrapper" style="flex:1; background:#fff; border:1px solid #ddd; border-radius:8px; display:flex; flex-direction:column;"><div style="padding:15px; border-bottom:1px solid #eee; background:#f9f9f9;"><input type="text" id="supplier-search" placeholder="검색..." style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;"></div><div id="supplier-list" style="flex:1; overflow-y:auto; padding:15px; display:flex; flex-direction:column; gap:8px;"><div style="text-align:center; padding:20px; color:#aaa;">로딩중...</div></div></div>
                 <div class="supplier-detail-wrapper" style="width:400px; flex-shrink:0; background:#fff; border:1px solid #ddd; border-radius:8px; padding:20px; overflow-y:auto; display:flex; flex-direction:column;">
                     <h3 id="supplier-form-title" style="margin-bottom:20px; color:#333;">상세 정보</h3>
                     <div class="form-group" style="margin-bottom:15px;"><label style="display:block; font-weight:bold; margin-bottom:5px;">거래처명</label><input type="text" id="sup-name" style="width:100%; padding:8px; border:1px solid #ccc;"></div>
@@ -150,7 +155,6 @@
                 </div>
             </div>
         </div>
-
         <div id="page-settings" class="content-group" style="display: none; padding: 20px; flex-grow: 1;"><h2>⚙️ 설정</h2></div>
     </div>
 
@@ -162,12 +166,27 @@
     <footer class="bottom-footer"><div>System Status: Stable | Firebase Connected</div></footer>
 
     <div id="photo-viewer-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:99999; align-items:center; justify-content:center; flex-direction:column;">
-        <div style="position:relative; max-width:90%; max-height:80%;">
-            <img id="viewer-img" src="" style="max-width:100%; max-height:80vh; border-radius:8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+        <div style="position:relative; max-width:90%; max-height:70%;">
+            <img id="viewer-img" src="" style="max-width:100%; max-height:70vh; border-radius:8px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
             <button id="viewer-close" style="position:absolute; top:-40px; right:0; background:none; border:none; color:white; font-size:2.5rem; cursor:pointer;">&times;</button>
         </div>
-        <div style="margin-top:20px;">
-            <button id="btn-toggle-status" style="padding:15px 40px; font-size:1.2rem; border-radius:30px; border:none; cursor:pointer; font-weight:bold; box-shadow:0 4px 10px rgba(0,0,0,0.3); transition: transform 0.1s;">상태변경</button>
+        <div id="viewer-note" style="background:rgba(255,255,255,0.9); padding:10px 20px; border-radius:20px; margin-top:15px; font-weight:bold; color:#333; max-width:90%; text-align:center;"></div>
+        <div style="margin-top:15px;">
+            <button id="btn-toggle-status" style="padding:12px 30px; font-size:1.1rem; border-radius:30px; border:none; cursor:pointer; font-weight:bold; box-shadow:0 4px 10px rgba(0,0,0,0.3); transition: transform 0.1s;">상태변경</button>
+        </div>
+    </div>
+
+    <div id="upload-confirm-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:999999; align-items:center; justify-content:center; flex-direction:column;">
+        <div style="background:white; padding:20px; border-radius:10px; width:90%; max-width:400px; text-align:center;">
+            <h3>📸 사진 주문 요청</h3>
+            <div style="margin:15px 0; max-height:300px; overflow:hidden; border-radius:8px; border:1px solid #eee;">
+                <img id="upload-preview-img" src="" style="width:100%; height:auto; display:block;">
+            </div>
+            <textarea id="upload-note" placeholder="요청사항을 적어주세요 (예: 3개, 급함!)" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:5px; height:80px; resize:none;"></textarea>
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button id="btn-upload-cancel" style="padding:12px; background:#eee; border:none; border-radius:5px; flex:1;">취소</button>
+                <button id="btn-upload-confirm" style="padding:12px; background:#27ae60; color:white; border:none; border-radius:5px; font-weight:bold; flex:1;">전송하기</button>
+            </div>
         </div>
     </div>
 

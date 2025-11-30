@@ -19,19 +19,27 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 console.log("🔥 Firebase Connected!");
 
-// [2] 전역 변수
+/* [2] 전역 변수 */
 let currentProduct = null; let currentQty = 1; let currentOptionPrice = 0; let currentOptionId = null;
 let cartItems = []; let deletedItemBackup = null; let undoTimeout = null;
 let calDate = new Date(); let selectedDateStr = null; 
 let currentSupplierId = null; let editingProductId = null; let allProductsData = []; 
 let currentPhotoReqId = null; 
+// [New] 업로드할 파일 임시 저장
+let tempUploadFile = null;
 
-/* [3] 초기화 및 이벤트 연결 */
-// 모달 닫기 버튼 연결 (초기 1회)
-const photoViewer = document.getElementById('photo-viewer-modal');
-if(photoViewer) {
-    photoViewer.querySelector('#viewer-close').addEventListener('click', () => photoViewer.style.display = 'none');
-    photoViewer.addEventListener('click', (e) => { if(e.target === photoViewer) photoViewer.style.display = 'none'; });
+/* [3] 초기화 */
+// 닫기 버튼들 연결
+document.querySelectorAll('[id^="btn-close"]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        e.target.closest('[id$="-modal"]').style.display = 'none';
+    });
+});
+// 뷰어 닫기
+const viewer = document.getElementById('photo-viewer-modal');
+if(viewer) {
+    viewer.addEventListener('click', (e) => { if(e.target === viewer) viewer.style.display = 'none'; });
+    viewer.querySelector('#viewer-close').addEventListener('click', () => viewer.style.display = 'none');
 }
 
 async function loadProducts() {
@@ -45,6 +53,9 @@ async function loadProducts() {
         renderMainTree(products); renderAdminList(products); 
     } catch (error) { console.error("Error:", error); }
 }
+// ... (renderMainTree 등 기존 함수들은 동일하므로 축약 없이 포함됨)
+// [지면상 기존 renderMainTree, mainSearchInput, focusProductInTree, displayOrderForm, updateTotalPrice 등은 이전과 동일]
+// (아래에 전체 코드를 다 적겠습니다.)
 
 function renderMainTree(productsToRender) {
     const listContainer = document.getElementById('product-list');
@@ -70,7 +81,6 @@ function renderMainTree(productsToRender) {
         catChildContainer.style.display = isSearchMode ? "block" : "none"; if(isSearchMode) catDiv.classList.add('open');
         catDiv.addEventListener("click", () => { catDiv.classList.toggle("open"); catChildContainer.style.display = catChildContainer.style.display === "none" ? "block" : "none"; });
         listContainer.appendChild(catDiv); listContainer.appendChild(catChildContainer);
-
         const companies = tree[categoryName];
         Object.keys(companies).sort().forEach(companyName => {
             const compDiv = document.createElement("div");
@@ -79,7 +89,6 @@ function renderMainTree(productsToRender) {
             compChildContainer.style.display = isSearchMode ? "block" : "none"; if(isSearchMode) compDiv.classList.add('open');
             compDiv.addEventListener("click", (e) => { e.stopPropagation(); compDiv.classList.toggle("open"); compChildContainer.style.display = compChildContainer.style.display === "none" ? "block" : "none"; });
             catChildContainer.appendChild(compDiv); catChildContainer.appendChild(compChildContainer);
-
             const itemList = companies[companyName];
             itemList.sort((a, b) => a.name.localeCompare(b.name));
             itemList.forEach(item => {
@@ -94,18 +103,15 @@ function renderMainTree(productsToRender) {
         });
     });
 }
-
 const mainSearchInput = document.getElementById('main-search-input');
 if(mainSearchInput) {
     mainSearchInput.addEventListener('input', (e) => {
         const keyword = e.target.value.toLowerCase().trim();
-        if(keyword.length > 0) { const orderTab = document.querySelector('.menu-item[data-target="order-mgmt"]'); if(orderTab) orderTab.click(); } 
-        else { renderMainTree(allProductsData); return; }
+        if(keyword.length > 0) { const orderTab = document.querySelector('.menu-item[data-target="order-mgmt"]'); if(orderTab) orderTab.click(); } else { renderMainTree(allProductsData); return; }
         const filtered = allProductsData.filter(p => (p.name && p.name.toLowerCase().includes(keyword)) || (p.company && p.company.toLowerCase().includes(keyword)) || (p.category && p.category.toLowerCase().includes(keyword)));
         renderMainTree(filtered);
     });
 }
-
 function focusProductInTree(product, optionId = null) {
     if(currentPhotoReqId) {
         if(confirm(`선택한 사진 요청을 '${product.name}' 상품과 매칭하시겠습니까?`)) {
@@ -129,8 +135,6 @@ function focusProductInTree(product, optionId = null) {
         }
     }, 100);
 }
-
-/* [4] 상세화면 & 장바구니 */
 function displayOrderForm(item, targetOptionId = null, photoReqId = null) {
     currentProduct = item; currentQty = 1; 
     document.getElementById('detail-empty').style.display = 'none';
@@ -138,7 +142,6 @@ function displayOrderForm(item, targetOptionId = null, photoReqId = null) {
     document.getElementById('detail-category').textContent = item.category;
     document.getElementById('detail-name').textContent = item.name;
     document.getElementById('detail-company').textContent = item.company;
-
     const header = document.querySelector('.order-header');
     if(photoReqId) {
         header.style.backgroundColor = "#fff8e1"; header.style.border = "1px solid #f39c12"; header.style.padding = "10px";
@@ -147,15 +150,14 @@ function displayOrderForm(item, targetOptionId = null, photoReqId = null) {
     } else {
         header.style.backgroundColor = "transparent"; header.style.border = "none"; header.removeAttribute('data-photo-req-id');
     }
-
     const optionContainer = document.getElementById('option-list-container');
     optionContainer.innerHTML = ""; 
     const options = item.options || []; 
     if(options.length === 0) { optionContainer.innerHTML = "<div style='padding:20px; color:#aaa; text-align:center;'>옵션 없음</div>"; document.getElementById('order-total-price').textContent = "0원"; return; }
-
     options.forEach((opt, index) => {
         const card = document.createElement('div'); card.className = 'option-card';
-        card.innerHTML = `<div style="flex:1;"><div class="option-name">${opt.name}</div></div><div style="text-align:right;"><div class="option-price">${Number(opt.price).toLocaleString()}원</div></div>`;
+        const lastOrderHtml = opt.lastOrder ? `<div style="font-size:0.8rem; color:#aaa; margin-top:4px;">최근: ${opt.lastOrder}</div>` : "";
+        card.innerHTML = `<div style="flex:1;"><div class="option-name">${opt.name}</div>${lastOrderHtml}</div><div style="text-align:right;"><div class="option-price">${Number(opt.price).toLocaleString()}원</div></div>`;
         let isSelected = false;
         if(targetOptionId) { if(opt.id === targetOptionId) isSelected = true; } else { if(index === 0) isSelected = true; }
         if(isSelected) { card.classList.add('selected'); currentOptionPrice = Number(opt.price); currentOptionId = opt.id; }
@@ -170,7 +172,6 @@ function displayOrderForm(item, targetOptionId = null, photoReqId = null) {
     if(options.length > 0 && !targetOptionId) { currentOptionPrice = Number(options[0].price); currentOptionId = options[0].id; }
     document.getElementById('order-qty').value = 1; updateTotalPrice();
 }
-
 function updateTotalPrice() {
     const total = currentOptionPrice * currentQty;
     document.getElementById('order-total-price').textContent = total.toLocaleString() + "원";
@@ -178,7 +179,6 @@ function updateTotalPrice() {
 document.getElementById('qty-plus').addEventListener('click', () => { currentQty++; document.getElementById('order-qty').value = currentQty; updateTotalPrice(); });
 document.getElementById('qty-minus').addEventListener('click', () => { if(currentQty > 1) currentQty--; document.getElementById('order-qty').value = currentQty; updateTotalPrice(); });
 document.getElementById('order-qty').addEventListener('input', function() { let val = parseInt(this.value); if(isNaN(val) || val < 1) val = 1; currentQty = val; updateTotalPrice(); });
-
 const btnAddCart = document.getElementById('btn-add-cart');
 if(btnAddCart) btnAddCart.addEventListener('click', async () => {
     if(!currentProduct || !currentOptionId) return;
@@ -190,102 +190,110 @@ if(btnAddCart) btnAddCart.addEventListener('click', async () => {
     const existingIndex = cartItems.findIndex(i => i.optionId === currentOptionId && i.photoReqId === photoReqId);
     if(existingIndex !== -1) { cartItems[existingIndex].qty += currentQty; cartItems[existingIndex].totalPrice = cartItems[existingIndex].unitPrice * cartItems[existingIndex].qty; } else { cartItems.push(newItem); }
     renderCart(currentOptionId);
-
     if(photoReqId) {
         try {
             await updateDoc(doc(db, "photo_requests", photoReqId), { status: "processed", matchedProduct: currentProduct.name, completedAt: new Date() });
-            currentPhotoReqId = null;
-            header.style.backgroundColor = "transparent"; header.style.border = "none"; header.removeAttribute('data-photo-req-id');
+            currentPhotoReqId = null; header.style.backgroundColor = "transparent"; header.style.border = "none"; header.removeAttribute('data-photo-req-id');
             document.getElementById('detail-name').textContent = currentProduct.name;
-            alert("사진 요청이 처리되어 장바구니에 담겼습니다.");
-        } catch(e) { console.error("사진 상태 업데이트 실패:", e); }
+            alert("사진 요청 처리 완료");
+        } catch(e) { console.error("사진 업데이트 실패:", e); }
     }
 });
-
 function renderCart(highlightId = null) {
     const cartList = document.getElementById('cart-list');
-    const totalEl = document.getElementById('cart-total-price');
-    const countEl = document.getElementById('cart-count');
-    cartList.innerHTML = ""; let totalAmount = 0;
+    cartList.innerHTML = ""; 
     if(cartItems.length === 0) cartList.innerHTML = "<div style='padding:40px 20px; text-align:center; color:#ccc;'>비어있음</div>";
+    let totalAmount = 0;
     cartItems.forEach((item, index) => {
         totalAmount += item.totalPrice;
-        const div = document.createElement('div');
-        div.className = 'cart-item-card';
+        const div = document.createElement('div'); div.className = 'cart-item-card';
         if(highlightId && item.optionId === highlightId) div.classList.add('highlight');
         div.addEventListener('dblclick', () => { document.querySelector('.menu-item[data-target="order-mgmt"]').click(); focusProductInTree(item.product, item.optionId); });
         const photoIcon = item.photoReqId ? '<span style="font-size:0.8rem;">📷</span>' : '';
-        // [수정] 장바구니에 제약사 표시
-        div.innerHTML = `<div class="cart-item-left"><div class="cart-item-title">${item.product.name} ${photoIcon} <span style="font-size:0.85rem; color:#888;">(${item.product.company})</span></div><div class="cart-item-desc">${item.optionName}</div></div><div class="cart-item-right"><div class="cart-item-price">${item.totalPrice.toLocaleString()}원</div><div class="cart-item-qty">${item.qty}개</div></div><button class="cart-delete-btn" onclick="deleteCartItem(${index})" title="삭제">&times;</button>`;
+        div.innerHTML = `<div class="cart-item-left"><div class="cart-item-title">${item.product.name} ${photoIcon} <span style="font-size:0.85rem; color:#888;">(${item.product.company})</span></div><div class="cart-item-desc">${item.optionName}</div></div><div class="cart-item-right"><div class="cart-item-price">${item.totalPrice.toLocaleString()}원</div><div class="cart-item-qty">${item.qty}개</div></div><button class="cart-delete-btn" onclick="deleteCartItem(${index})">&times;</button>`;
         cartList.appendChild(div);
     });
-    if(totalEl) totalEl.textContent = totalAmount.toLocaleString() + "원";
-    if(countEl) countEl.textContent = cartItems.length;
+    document.getElementById('cart-total-price').textContent = totalAmount.toLocaleString() + "원";
+    document.getElementById('cart-count').textContent = cartItems.length;
 }
 window.deleteCartItem = function(index) { const card = document.querySelectorAll('.cart-item-card')[index]; deletedItemBackup = { item: cartItems[index], optionId: cartItems[index].optionId }; if(card) card.classList.add('deleting'); setTimeout(() => { cartItems.splice(index, 1); renderCart(); showUndoNotification(); }, 200); };
 function showUndoNotification() { const undoArea = document.getElementById('undo-area'); undoArea.style.display = 'block'; if(undoTimeout) clearTimeout(undoTimeout); undoTimeout = setTimeout(() => { undoArea.style.display = 'none'; deletedItemBackup = null; }, 5000); }
 if(document.getElementById('btn-undo')) document.getElementById('btn-undo').addEventListener('click', () => { if(deletedItemBackup) { cartItems.push(deletedItemBackup.item); renderCart(deletedItemBackup.optionId); document.getElementById('undo-area').style.display = 'none'; } });
-
 if(document.getElementById('btn-order-complete')) {
     document.getElementById('btn-order-complete').addEventListener('click', async () => {
         if(cartItems.length === 0) return;
         if(!confirm(`총 ${cartItems.length}건 주문완료?`)) return;
         const now = new Date();
-        const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-        try { await addDoc(collection(db, "order_history"), { date: dateStr, timestamp: now, items: cartItems }); cartItems = []; renderCart(); } catch(e) { console.error(e); alert("주문 저장 실패"); }
+        const year = now.getFullYear(); const month = String(now.getMonth() + 1).padStart(2, '0'); const day = String(now.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+        try { await addDoc(collection(db, "order_history"), { date: dateStr, timestamp: now, items: cartItems }); cartItems = []; renderCart(); } catch(e) { console.error(e); alert("저장 실패"); }
     });
 }
 
-
-/* ==========================================================================
-   [7] 하단 로그 패널 (실시간 연동)
-   ========================================================================== */
-function subscribeToRecentLogs() {
-    const logContainer = document.getElementById('completed-order-list');
-    const q = query(collection(db, "order_history"), orderBy("timestamp", "desc"), limit(50));
-    onSnapshot(q, (snapshot) => {
-        logContainer.innerHTML = "";
-        if(snapshot.empty) { logContainer.innerHTML = '<div style="color:#aaa; padding:10px;">기록 없음</div>'; return; }
-        snapshot.forEach(docSnap => {
-            const data = docSnap.data();
-            const dateObj = data.timestamp.toDate();
-            const timeStr = `${dateObj.getMonth()+1}/${dateObj.getDate()} ${dateObj.getHours()}:${String(dateObj.getMinutes()).padStart(2,'0')}`;
-            data.items.forEach(item => {
-                const div = document.createElement('div'); div.className = 'log-item';
-                // [수정] 하단 로그에 제약사 표시
-                div.innerHTML = `<div style="display:flex; align-items:center;"><span class="log-time">[${timeStr}]</span><strong>${item.product.name}</strong><span style="color:#888; font-size:0.85rem; margin-left:4px;">(${item.product.company})</span><span style="color:#666; margin-left:5px;">(${item.qty})</span></div><div><span class="log-status">완료</span><button class="btn-log-restore">취소</button></div>`;
-                div.querySelector('.btn-log-restore').addEventListener('click', async () => { if(confirm("취소하시겠습니까?")) { cartItems.push(item); renderCart(item.optionId); await deleteDoc(doc(db, "order_history", docSnap.id)); } });
-                logContainer.appendChild(div);
-            });
-        });
-    });
-}
-
-/* [8] 사진 업로드 & 대기열 */
+/* [8] 사진 업로드 (수정: 메모 입력 모달) */
 const btnCamera = document.getElementById('btn-camera-floating');
 const cameraInput = document.getElementById('camera-input');
 const loadingSpinner = document.getElementById('loading-spinner');
+const uploadModal = document.getElementById('upload-confirm-modal');
+const previewImg = document.getElementById('upload-preview-img');
+const uploadNote = document.getElementById('upload-note');
 
-function handleCameraClick() { cameraInput.click(); }
-if(btnCamera) btnCamera.addEventListener('click', handleCameraClick);
-
-if(cameraInput) {
-    cameraInput.addEventListener('change', async (e) => {
+if(btnCamera && cameraInput) {
+    btnCamera.addEventListener('click', () => { cameraInput.click(); });
+    cameraInput.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if(!file) return;
-        const options = { maxSizeMB: 1, maxWidthOrHeight: 1024, useWebWorker: true };
-        try {
-            if(loadingSpinner) loadingSpinner.style.display = 'flex';
-            const compressedFile = await imageCompression(file, options);
-            const storageRef = ref(storage, `photo_requests/${Date.now()}_${file.name}`);
-            await uploadBytes(storageRef, compressedFile);
-            const downloadURL = await getDownloadURL(storageRef);
-            await addDoc(collection(db, "photo_requests"), { imageUrl: downloadURL, timestamp: new Date(), status: 'pending', note: '' });
-            if(loadingSpinner) loadingSpinner.style.display = 'none';
-            alert("전송 완료");
-        } catch(error) { console.error(error); if(loadingSpinner) loadingSpinner.style.display = 'none'; alert("오류 발생"); }
+        
+        // 1. 모달 열기 & 미리보기
+        tempUploadFile = file; // 전역 임시 저장
+        const reader = new FileReader();
+        reader.onload = (e) => { previewImg.src = e.target.result; };
+        reader.readAsDataURL(file);
+        
+        uploadNote.value = ""; // 메모 초기화
+        uploadModal.style.display = 'flex';
     });
 }
+
+// 업로드 취소
+document.getElementById('btn-upload-cancel').addEventListener('click', () => {
+    uploadModal.style.display = 'none';
+    cameraInput.value = ""; // 초기화
+    tempUploadFile = null;
+});
+
+// 업로드 확정 (전송)
+document.getElementById('btn-upload-confirm').addEventListener('click', async () => {
+    if(!tempUploadFile) return;
+    
+    const note = uploadNote.value;
+    uploadModal.style.display = 'none'; // 모달 먼저 닫기
+    
+    const options = { maxSizeMB: 1, maxWidthOrHeight: 1024, useWebWorker: true };
+
+    try {
+        if(loadingSpinner) loadingSpinner.style.display = 'flex';
+
+        const compressedFile = await imageCompression(tempUploadFile, options);
+        const storageRef = ref(storage, `photo_requests/${Date.now()}_${tempUploadFile.name}`);
+        await uploadBytes(storageRef, compressedFile);
+        const downloadURL = await getDownloadURL(storageRef);
+
+        await addDoc(collection(db, "photo_requests"), {
+            imageUrl: downloadURL,
+            timestamp: new Date(),
+            status: 'pending',
+            note: note // [New] 메모 저장
+        });
+
+        if(loadingSpinner) loadingSpinner.style.display = 'none';
+        alert("사진 요청이 전송되었습니다!");
+    } catch(error) {
+        console.error(error);
+        if(loadingSpinner) loadingSpinner.style.display = 'none';
+        alert("오류 발생");
+    }
+});
 
 function formatShortTime(timestamp) {
     if(!timestamp) return "";
@@ -304,11 +312,8 @@ function subscribeToPhotoRequests() {
         if(snapshot.empty) { queueContainer.innerHTML = "<div style='grid-column:1/-1; text-align:center; color:#ccc; padding:50px;'>요청 내역이 없습니다.</div>"; return; }
         
         let photoList = [];
-        snapshot.forEach(docSnap => photoList.push({ id: docSnap.id, ...docSnap.data(), docSnap: docSnap }));
-        photoList.sort((a, b) => {
-            if (a.status === b.status) return b.timestamp.seconds - a.timestamp.seconds;
-            return a.status === 'pending' ? -1 : 1; 
-        });
+        snapshot.forEach(docSnap => photoList.push({ id: docSnap.id, ...docSnap.data() }));
+        photoList.sort((a, b) => { if (a.status === b.status) return b.timestamp.seconds - a.timestamp.seconds; return a.status === 'pending' ? -1 : 1; });
 
         photoList.forEach(data => {
             const div = document.createElement('div');
@@ -316,60 +321,51 @@ function subscribeToPhotoRequests() {
             div.className = `order-book-item ${isDone ? 'done' : 'pending'}`;
             const reqTime = formatShortTime(data.timestamp);
             const doneTime = data.completedAt ? formatShortTime(data.completedAt) : "";
-            div.innerHTML = `<img src="${data.imageUrl}"><div class="photo-time-label time-top">요청: ${reqTime}</div>${isDone ? `<div class="photo-time-label time-bottom">완료: ${doneTime}</div>` : ''}`;
-            div.addEventListener('click', () => showPhotoViewer(data.id, data.imageUrl, data.status));
+            
+            // [New] 메모 라벨 추가 (있을 때만)
+            const noteHtml = data.note ? `<div class="photo-note-label">${data.note}</div>` : "";
+
+            div.innerHTML = `<img src="${data.imageUrl}">
+                <div class="photo-time-label time-top">요청: ${reqTime}</div>
+                ${isDone ? `<div class="photo-time-label time-bottom">완료: ${doneTime}</div>` : ''}
+                ${noteHtml}
+            `;
+            div.addEventListener('click', () => showPhotoViewer(data.id, data.imageUrl, data.status, data.note));
             queueContainer.appendChild(div);
         });
     });
 }
 
-function showPhotoViewer(docId, imageUrl, currentStatus) {
+// [Update] 뷰어에 메모 표시
+function showPhotoViewer(docId, imageUrl, currentStatus, note) {
     let viewer = document.getElementById('photo-viewer-modal');
-    if(viewer) {
-        // 버튼 이벤트 새로고침을 위해 복제 후 교체 (리스너 중복 방지)
-        const newViewer = viewer.cloneNode(true);
-        viewer.parentNode.replaceChild(newViewer, viewer);
-        viewer = newViewer;
-    }
-    // 이벤트 리스너 재연결은 뷰어 안에서 하지 않고 미리 연결된 상태를 활용하거나 여기서 재연결
-    // *수정* : 위에서 복제하면 기존에 HTML에 박아둔 닫기 버튼 이벤트가 날아갑니다.
-    // 따라서 뷰어를 매번 새로 만들지 않고, 내용물만 바꾸는게 안전합니다.
-    
-    viewer = document.getElementById('photo-viewer-modal');
     const img = viewer.querySelector('#viewer-img');
     const btn = viewer.querySelector('#btn-toggle-status');
-    
+    const noteEl = viewer.querySelector('#viewer-note'); // 메모 영역
+
     img.src = imageUrl;
+    // 메모 표시
+    if(note) {
+        noteEl.textContent = `📝 메모: ${note}`;
+        noteEl.style.display = 'block';
+    } else {
+        noteEl.style.display = 'none';
+    }
     
     if(currentStatus === 'pending') { btn.textContent = "주문완료"; btn.style.backgroundColor = "#27ae60"; btn.style.color = "white"; } 
     else { btn.textContent = "주문취소"; btn.style.backgroundColor = "#e74c3c"; btn.style.color = "white"; }
 
-    // 버튼 이벤트 (기존 리스너 제거 후 새 리스너 추가)
-    const newBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(newBtn, btn);
-    
-    newBtn.onclick = async () => {
+    btn.onclick = async () => {
         const newStatus = currentStatus === 'pending' ? 'processed' : 'pending';
         const updateData = { status: newStatus };
-        if(newStatus === 'processed') { updateData.completedAt = new Date(); }
-        else { updateData.completedAt = null; }
-
+        if(newStatus === 'processed') updateData.completedAt = new Date(); else updateData.completedAt = null;
         try { await updateDoc(doc(db, "photo_requests", docId), updateData); viewer.style.display = 'none'; } 
         catch(e) { alert("상태 변경 실패"); }
     };
-    
-    // 닫기 버튼 재연결
-    const closeBtn = viewer.querySelector('#viewer-close');
-    closeBtn.onclick = () => viewer.style.display = 'none';
-    viewer.onclick = (e) => { if(e.target === viewer) viewer.style.display = 'none'; };
-
     viewer.style.display = 'flex';
 }
 
-
-/* ==========================================================================
-   [9] 관리자(Admin) & 달력
-   ========================================================================== */
+// (관리자/거래처 등 나머지 코드들 - 생략 없이 포함)
 function renderAdminList(productsToRender) {
     const adminListContainer = document.getElementById('admin-product-list');
     const countEl = document.getElementById('admin-list-count');
@@ -518,56 +514,32 @@ if(btnDeleteSupplier) btnDeleteSupplier.addEventListener('click', async () => { 
 document.getElementById('btn-toggle-pw').addEventListener('click', () => { const pwInput = document.getElementById('sup-site-pw'); if(pwInput.type === "password") { if(prompt("PIN (0000)") === "0000") pwInput.type = "text"; } else pwInput.type = "password"; });
 document.getElementById('btn-manager-handover').addEventListener('click', () => { const cur = document.getElementById('sup-cur-manager').value; if(cur && confirm("이관?")) { document.getElementById('sup-prev-manager').value = cur; document.getElementById('sup-cur-manager').value = ""; } });
 
-// [10] 달력 (점 표시 추가)
-async function checkMonthData(year, month) {
-    const startStr = `${year}-${String(month+1).padStart(2,'0')}-01`;
-    const endStr = `${year}-${String(month+1).padStart(2,'0')}-31`; // 대략적으로
-    const q = query(collection(db, "order_history"), where("date", ">=", startStr), where("date", "<=", endStr));
-    const snapshot = await getDocs(q);
-    const hasDataDates = new Set();
-    snapshot.forEach(doc => hasDataDates.add(doc.data().date));
-    
-    document.querySelectorAll('.calendar-date').forEach(el => {
-        if(hasDataDates.has(el.getAttribute('data-date'))) {
-            el.classList.add('has-data');
-        }
-    });
-}
-
+// [10] 달력/로그 
 function renderCalendar() {
-    const grid = document.getElementById('calendar-grid');
-    const monthEl = document.getElementById('cal-current-month');
-    if(!grid) return;
-    grid.innerHTML = "";
-    const year = calDate.getFullYear();
-    const month = calDate.getMonth(); 
+    const grid = document.getElementById('calendar-grid'); const monthEl = document.getElementById('cal-current-month');
+    if(!grid) return; grid.innerHTML = "";
+    const year = calDate.getFullYear(); const month = calDate.getMonth(); 
     monthEl.textContent = `${year}.${String(month + 1).padStart(2, '0')}`;
-    const firstDay = new Date(year, month, 1).getDay(); 
-    const lastDate = new Date(year, month + 1, 0).getDate(); 
-    const today = new Date();
-    const isThisMonth = (today.getFullYear() === year && today.getMonth() === month);
-    for(let i=0; i<firstDay; i++) {
-        const emptyDiv = document.createElement('div');
-        emptyDiv.className = 'calendar-date empty';
-        grid.appendChild(emptyDiv);
-    }
+    const firstDay = new Date(year, month, 1).getDay(); const lastDate = new Date(year, month + 1, 0).getDate(); 
+    const today = new Date(); const isThisMonth = (today.getFullYear() === year && today.getMonth() === month);
+    for(let i=0; i<firstDay; i++) { const div = document.createElement('div'); div.className = 'calendar-date empty'; grid.appendChild(div); }
     for(let i=1; i<=lastDate; i++) {
-        const dayDiv = document.createElement('div');
-        dayDiv.className = 'calendar-date';
-        dayDiv.textContent = i;
+        const div = document.createElement('div'); div.className = 'calendar-date'; div.textContent = i;
         const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-        dayDiv.setAttribute('data-date', dateStr);
-        if(isThisMonth && today.getDate() === i) dayDiv.classList.add('today');
-        if(selectedDateStr === dateStr) dayDiv.classList.add('selected');
-        dayDiv.addEventListener('click', () => {
-            document.querySelectorAll('.calendar-date.selected').forEach(d => d.classList.remove('selected'));
-            dayDiv.classList.add('selected');
-            selectedDateStr = dateStr;
-            loadHistoryByDate(dateStr);
-        });
-        grid.appendChild(dayDiv);
+        div.setAttribute('data-date', dateStr);
+        if(isThisMonth && today.getDate() === i) div.classList.add('today');
+        if(selectedDateStr === dateStr) div.classList.add('selected');
+        div.addEventListener('click', () => { document.querySelectorAll('.calendar-date').forEach(d => d.classList.remove('selected')); div.classList.add('selected'); selectedDateStr = dateStr; loadHistoryByDate(dateStr); });
+        grid.appendChild(div);
     }
-    checkMonthData(year, month);
+    // 달력 데이터 체크
+    const startStr = `${year}-${String(month+1).padStart(2,'0')}-01`;
+    const endStr = `${year}-${String(month+1).padStart(2,'0')}-31`;
+    const q = query(collection(db, "order_history"), where("date", ">=", startStr), where("date", "<=", endStr));
+    getDocs(q).then(snap => {
+        const dates = new Set(); snap.forEach(d => dates.add(d.data().date));
+        document.querySelectorAll('.calendar-date').forEach(el => { if(dates.has(el.getAttribute('data-date'))) el.classList.add('has-data'); });
+    });
 }
 const btnCalPrev = document.getElementById('cal-prev');
 const btnCalNext = document.getElementById('cal-next');
@@ -584,21 +556,16 @@ async function loadHistoryByDate(dateStr) {
         const querySnapshot = await getDocs(q);
         listContainer.innerHTML = "";
         if(querySnapshot.empty) { listContainer.innerHTML = "<div style='text-align:center; color:#ccc; margin-top:50px;'>기록 없음</div>"; return; }
-        
         let historyData = [];
         querySnapshot.forEach(doc => historyData.push({ id: doc.id, ...doc.data() }));
         historyData.sort((a, b) => b.timestamp.seconds - a.timestamp.seconds);
-
         historyData.forEach(data => {
-            const items = data.items; 
-            const card = document.createElement('div');
-            card.className = 'history-card';
+            const items = data.items; const card = document.createElement('div'); card.className = 'history-card';
             const dateObj = data.timestamp.toDate(); 
             const timeStr = `${dateObj.getHours()}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
             let itemsHtml = "";
             items.forEach(item => {
-                // [수정] 기록에도 제약사 표시
-                itemsHtml += `<div class="history-item-row"><span>${item.product.name} <span style="color:#888; font-size:0.85rem;">(${item.product.company})</span> <span style="color:#666;">(${item.optionName})</span></span><strong>${item.qty}개</strong></div>`;
+                itemsHtml += `<div class="history-item-row"><span>${item.product.name} <span style="color:#888;">(${item.product.company})</span></span><strong>${item.qty}개</strong></div>`;
             });
             card.innerHTML = `<div class="history-time">⏰ ${timeStr} (총 ${items.length}품목)</div><div style="border-top:1px solid #eee; margin-top:5px; padding-top:5px;">${itemsHtml}</div>`;
             listContainer.appendChild(card);
@@ -606,7 +573,27 @@ async function loadHistoryByDate(dateStr) {
     } catch (e) { console.error(e); }
 }
 
-// [12] 탭 전환 및 초기 실행
+function subscribeToRecentLogs() {
+    const logContainer = document.getElementById('completed-order-list');
+    const q = query(collection(db, "order_history"), orderBy("timestamp", "desc"), limit(50));
+    onSnapshot(q, (snapshot) => {
+        logContainer.innerHTML = "";
+        if(snapshot.empty) { logContainer.innerHTML = '<div style="color:#aaa; padding:10px;">기록 없음</div>'; return; }
+        snapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            const dateObj = data.timestamp.toDate();
+            const timeStr = `${dateObj.getMonth()+1}/${dateObj.getDate()} ${dateObj.getHours()}:${String(dateObj.getMinutes()).padStart(2,'0')}`;
+            data.items.forEach(item => {
+                const div = document.createElement('div'); div.className = 'log-item';
+                div.innerHTML = `<div style="display:flex; align-items:center;"><span class="log-time">[${timeStr}]</span><strong>${item.product.name}</strong><span style="color:#888; font-size:0.85rem; margin-left:4px;">(${item.product.company})</span><span style="color:#666; margin-left:5px;">(${item.qty})</span></div><div><span class="log-status">완료</span><button class="btn-log-restore">취소</button></div>`;
+                div.querySelector('.btn-log-restore').addEventListener('click', async () => { if(confirm("취소?")) { cartItems.push(item); renderCart(item.optionId); await deleteDoc(doc(db, "order_history", docSnap.id)); } });
+                logContainer.appendChild(div);
+            });
+        });
+    });
+}
+
+// [11] 탭 & 실행
 const menuItems = document.querySelectorAll('.menu-item');
 const pages = document.querySelectorAll('.content-group');
 menuItems.forEach(item => {
@@ -622,17 +609,7 @@ menuItems.forEach(item => {
             if(['product-mgmt', 'history-mgmt', 'supplier-mgmt', 'order-book'].includes(targetId)) targetPage.style.flexDirection = 'column';
         }
         if(targetId === 'supplier-mgmt') loadSuppliers(); 
-        if(targetId === 'history-mgmt') { 
-            calDate = new Date(); 
-            const now = new Date();
-            const y = now.getFullYear();
-            const m = String(now.getMonth() + 1).padStart(2, '0');
-            const d = String(now.getDate()).padStart(2, '0');
-            const todayStr = `${y}-${m}-${d}`;
-            selectedDateStr = todayStr;
-            renderCalendar();
-            loadHistoryByDate(todayStr); 
-        }
+        if(targetId === 'history-mgmt') { calDate = new Date(); renderCalendar(); loadHistoryByDate(`${calDate.getFullYear()}-${String(calDate.getMonth()+1).padStart(2,'0')}-${String(calDate.getDate()).padStart(2,'0')}`); }
         if(targetId === 'product-mgmt') { loadSupplierDropdown(); if(!editingProductId && document.getElementById('reg-options-container').children.length === 0) addOptionRow(); }
         window.scrollTo(0, 0); 
     });
