@@ -747,3 +747,33 @@ footer.bottom-footer {
     /* 폼 내부 스크롤 해제 */
     #product-form-body { overflow: visible !important; }
 }
+
+/* [New] 사진 요청 대기열 스타일 */
+.photo-queue-item {
+    display: inline-block;
+    width: 60px;
+    height: 60px;
+    margin-right: 8px;
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+    border: 2px solid #ccc;
+    cursor: pointer;
+}
+.photo-queue-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.photo-queue-item:hover {
+    border-color: #3498db;
+}
+/* 처리되지 않은(New) 표시 */
+.photo-queue-badge {
+    position: absolute;
+    top: 0; right: 0;
+    width: 10px; height: 10px;
+    background: #e74c3c;
+    border-radius: 50%;
+    border: 1px solid white;
+}

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PharmaOrder OS</title>
     <link rel="stylesheet" href="style.css">
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.js"></script>
 </head>
 <body>
 
@@ -102,7 +103,8 @@
                 <div class="panel-header">
                     장바구니 (Cart) <span id="cart-count" style="background:#e74c3c; color:white; border-radius:50%; padding:2px 6px; font-size:0.8rem;">0</span>
                 </div>
-                
+                <div id="photo-request-queue" style="padding:10px; background:#f0f3f5; border-bottom:1px solid #ddd; display:none; overflow-x:auto; white-space:nowrap;">
+                </div>
                 <div id="undo-area" style="display:none; background:#333; color:white; padding:10px; text-align:center; font-size:0.9rem;">
                     삭제되었습니다. 
                     <button id="btn-undo" style="margin-left:10px; border:1px solid #aaa; background:transparent; color:#fff; cursor:pointer; border-radius:4px;">실행취소</button>
@@ -311,7 +313,10 @@
             </div>
         </div>
     </div>
-
+    <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none;">
+    <button id="btn-camera-floating" style="position:fixed; bottom:80px; right:20px; width:60px; height:60px; border-radius:50%; background:#e74c3c; color:white; border:none; box-shadow:0 4px 10px rgba(0,0,0,0.3); font-size:2rem; cursor:pointer; z-index:9999; display:flex; align-items:center; justify-content:center;">
+        📷
+    </button>
     <script type="module" src="script.js"></script>
 </body>
 </html>
