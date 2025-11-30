@@ -1,11 +1,11 @@
 /* ==========================================================================
-   [1] Firebase 설정 및 라이브러리 임포트
+   [1] Firebase 설정 및 초기화
    ========================================================================== */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, getDocs, addDoc, deleteDoc, updateDoc, doc, query, where, orderBy, onSnapshot, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
-// ★ 중요: 본인의 Firebase 키값으로 꼭 변경해주세요!
+// ★ 중요: 본인의 Firebase 프로젝트 설정값으로 변경해주세요.
 const firebaseConfig = {
     apiKey: "AIzaSyA250TRzQCM9FMqiXBROX3IknKE1FZp5rc", 
     authDomain: "pharmacy-order-5ddc5.firebaseapp.com",
@@ -15,6 +15,7 @@ const firebaseConfig = {
     appId: "1:713414389922:web:606452de8b27fe847ca7fb"
 };
 
+// Firebase 서비스 시작
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const storage = getStorage(app);
@@ -22,39 +23,42 @@ console.log("🔥 Firebase Connected!");
 
 
 /* ==========================================================================
-   [2] 전역 변수 선언
+   [2] 전역 변수 선언 (상태 관리)
    ========================================================================== */
-// 주문 관련
+// 주문 처리 관련
 let currentProduct = null;      
 let currentQty = 1;             
 let currentOptionPrice = 0;     
 let currentOptionId = null;     
 let cartItems = [];             
 
-// 실행 취소 관련
+// 장바구니 실행 취소 (Undo)
 let deletedItemBackup = null;   
 let undoTimeout = null;         
 
-// 달력/기록 관련
+// 주문 기록 (달력)
 let calDate = new Date(); 
 let selectedDateStr = null; 
 
-// 관리자 관련
+// 거래처 및 상품 관리 (Admin)
 let currentSupplierId = null;
 let editingProductId = null; 
-let allProductsData = []; // 검색용 데이터 캐싱
+let allProductsData = []; // 검색을 위한 데이터 캐싱
 
-// 사진 요청 관련
+// 사진 주문 요청
 let currentPhotoReqId = null; 
 
 
 /* ==========================================================================
-   [3] 데이터 불러오기 (상품 목록)
+   [3] 데이터 불러오기 (상품 목록 Read & 트리 생성)
    ========================================================================== */
 async function loadProducts() {
     const listContainer = document.getElementById('product-list');
     
-    if(listContainer) listContainer.innerHTML = "<div style='padding:20px; text-align:center'>로딩중...</div>";
+    // 로딩 표시
+    if(listContainer) {
+        listContainer.innerHTML = "<div style='padding:20px; text-align:center'>데이터를 불러오는 중...</div>";
+    }
 
     try {
         const querySnapshot = await getDocs(collection(db, "products"));
@@ -63,22 +67,24 @@ async function loadProducts() {
             products.push({ id: doc.id, ...doc.data() });
         });
 
-        allProductsData = products; // 검색을 위해 저장
+        // 전역 변수에 저장 (검색용)
+        allProductsData = products;
 
+        // 화면 그리기
         renderMainTree(products); 
         renderAdminList(products); 
 
-    } catch (error) { console.error("Error:", error); }
+    } catch (error) { 
+        console.error("Error loading products:", error); 
+    }
 }
 
-
-/* ==========================================================================
-   [4] 좌측 메인 트리 & 검색 기능
-   ========================================================================== */
+// 좌측 메인 트리(Tree) 렌더링 함수
 function renderMainTree(productsToRender) {
     const listContainer = document.getElementById('product-list');
     if(!listContainer) return;
 
+    // 데이터 구조화 (카테고리 -> 제약사 -> 상품)
     const tree = {};
     productsToRender.forEach(p => {
         const cat = p.category || "기타";
@@ -90,9 +96,10 @@ function renderMainTree(productsToRender) {
 
     listContainer.innerHTML = ""; 
     
-    // 검색 중인지 확인 (전체 개수와 다르면 검색 중)
+    // 검색 모드 확인
     const isSearchMode = (productsToRender.length < allProductsData.length) && (productsToRender.length > 0);
 
+    // 카테고리 순서 고정
     const fixedOrder = ["전문의약품", "일반의약품", "의약외품"];
     const allCategories = Object.keys(tree);
     const sortedCategories = [
@@ -105,6 +112,7 @@ function renderMainTree(productsToRender) {
         return;
     }
 
+    // 트리 DOM 생성
     sortedCategories.forEach(categoryName => {
         const catDiv = document.createElement("div");
         catDiv.className = "tree-node tree-depth-0 tree-toggle"; 
@@ -146,9 +154,12 @@ function renderMainTree(productsToRender) {
                 const itemDiv = document.createElement("div");
                 itemDiv.className = "tree-node tree-depth-2";
                 itemDiv.setAttribute("data-id", item.id);
+                
                 let displayName = item.name;
                 if(item.stock === false) displayName = `<span style="color:red">[품절]</span> ${item.name}`;
                 itemDiv.innerHTML = displayName;
+
+                // 상품 클릭 시 상세화면 이동
                 itemDiv.addEventListener("click", () => focusProductInTree(item));
                 compChildContainer.appendChild(itemDiv);
             });
@@ -156,12 +167,13 @@ function renderMainTree(productsToRender) {
     });
 }
 
-// 상단 통합 검색창 리스너
+// 상단 통합 검색 리스너
 const mainSearchInput = document.getElementById('main-search-input');
 if(mainSearchInput) {
     mainSearchInput.addEventListener('input', (e) => {
         const keyword = e.target.value.toLowerCase().trim();
         
+        // 검색어가 있으면 탭 이동
         if(keyword.length > 0) {
             const orderTab = document.querySelector('.menu-item[data-target="order-mgmt"]');
             if(orderTab) orderTab.click();
@@ -182,14 +194,25 @@ if(mainSearchInput) {
     });
 }
 
+// 트리에서 상품 찾아가기 (자동 펼침)
 function focusProductInTree(product, optionId = null) {
-    // 사진 매칭 로직 제거됨 (단순 이동)
+    // 사진 매칭 중인지 확인
+    if(currentPhotoReqId) {
+        if(confirm(`선택한 사진 요청을 '${product.name}' 상품과 매칭하시겠습니까?`)) {
+            displayOrderForm(product, optionId, currentPhotoReqId);
+            return;
+        }
+    }
+    
     displayOrderForm(product, optionId);
+    
+    // 약간의 지연 후 트리 펼치기 및 스크롤 이동
     setTimeout(() => {
         const targetNode = document.querySelector(`.tree-node[data-id="${product.id}"]`);
         if(targetNode) {
             document.querySelectorAll('.tree-node.active-node').forEach(n => n.classList.remove('active-node'));
             targetNode.classList.add('active-node');
+            
             let parent = targetNode.parentElement;
             while(parent) {
                 if(parent.id === 'product-list') break;
@@ -207,9 +230,9 @@ function focusProductInTree(product, optionId = null) {
 
 
 /* ==========================================================================
-   [5] 중앙 상세화면 (주문 폼)
+   [4] 상세 화면 (주문 폼) & 장바구니
    ========================================================================== */
-function displayOrderForm(item, targetOptionId = null) {
+function displayOrderForm(item, targetOptionId = null, photoReqId = null) {
     currentProduct = item; 
     currentQty = 1; 
 
@@ -219,14 +242,23 @@ function displayOrderForm(item, targetOptionId = null) {
     document.getElementById('detail-name').textContent = item.name;
     document.getElementById('detail-company').textContent = item.company;
 
-    // 헤더 초기화 (사진매칭 스타일 제거)
+    // 사진 매칭 중 UI 표시
     const header = document.querySelector('.order-header');
-    header.style.backgroundColor = "transparent";
-    header.style.border = "none";
+    if(photoReqId) {
+        header.style.backgroundColor = "#fff8e1";
+        header.style.border = "1px solid #f39c12";
+        header.style.padding = "10px";
+        header.setAttribute('data-photo-req-id', photoReqId); 
+        document.getElementById('detail-name').innerHTML = `${item.name} <span style="font-size:0.8rem; color:#e67e22;">(사진 매칭중)</span>`;
+    } else {
+        header.style.backgroundColor = "transparent";
+        header.style.border = "none";
+        header.removeAttribute('data-photo-req-id');
+    }
 
+    // 옵션 리스트 생성
     const optionContainer = document.getElementById('option-list-container');
     optionContainer.innerHTML = ""; 
-
     const options = item.options || []; 
 
     if(options.length === 0) {
@@ -251,15 +283,25 @@ function displayOrderForm(item, targetOptionId = null) {
         `;
 
         let isSelected = false;
-        if(targetOptionId) { if(opt.id === targetOptionId) isSelected = true; } else { if(index === 0) isSelected = true; }
+        if(targetOptionId) { 
+            if(opt.id === targetOptionId) isSelected = true; 
+        } else { 
+            if(index === 0) isSelected = true; 
+        }
 
-        if(isSelected) { card.classList.add('selected'); currentOptionPrice = Number(opt.price); currentOptionId = opt.id; }
+        if(isSelected) { 
+            card.classList.add('selected'); 
+            currentOptionPrice = Number(opt.price); 
+            currentOptionId = opt.id; 
+        }
 
         card.addEventListener('click', () => {
             document.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
             card.classList.add('selected');
-            currentQty = 1; document.getElementById('order-qty').value = 1;
-            currentOptionPrice = Number(opt.price); currentOptionId = opt.id; 
+            currentQty = 1; 
+            document.getElementById('order-qty').value = 1;
+            currentOptionPrice = Number(opt.price); 
+            currentOptionId = opt.id; 
             updateTotalPrice();
         });
         optionContainer.appendChild(card);
@@ -280,25 +322,34 @@ function updateTotalPrice() {
     if(totalEl) totalEl.textContent = total.toLocaleString() + "원";
 }
 
-// 수량 조절 버튼 및 입력
-document.getElementById('qty-plus').addEventListener('click', () => { currentQty++; document.getElementById('order-qty').value = currentQty; updateTotalPrice(); });
-document.getElementById('qty-minus').addEventListener('click', () => { if(currentQty > 1) currentQty--; document.getElementById('order-qty').value = currentQty; updateTotalPrice(); });
+// 수량 조절 이벤트
+document.getElementById('qty-plus').addEventListener('click', () => { 
+    currentQty++; 
+    document.getElementById('order-qty').value = currentQty; 
+    updateTotalPrice(); 
+});
+document.getElementById('qty-minus').addEventListener('click', () => { 
+    if(currentQty > 1) currentQty--; 
+    document.getElementById('order-qty').value = currentQty; 
+    updateTotalPrice(); 
+});
 document.getElementById('order-qty').addEventListener('input', function() {
     let val = parseInt(this.value);
     if(isNaN(val) || val < 1) val = 1; 
-    currentQty = val; updateTotalPrice();
+    currentQty = val; 
+    updateTotalPrice();
 });
 
-
-/* ==========================================================================
-   [6] 장바구니 로직
-   ========================================================================== */
+// [장바구니 담기]
 const btnAddCart = document.getElementById('btn-add-cart');
 if(btnAddCart) btnAddCart.addEventListener('click', async () => {
     if(!currentProduct || !currentOptionId) return;
     
     const selectedOptionEl = document.querySelector('.option-card.selected');
     const optionName = selectedOptionEl ? selectedOptionEl.querySelector('.option-name').textContent : "기본옵션";
+    
+    const header = document.querySelector('.order-header');
+    const photoReqId = header.getAttribute('data-photo-req-id'); 
     
     const newItem = { 
         cartId: Date.now(), 
@@ -307,11 +358,11 @@ if(btnAddCart) btnAddCart.addEventListener('click', async () => {
         optionName: optionName, 
         qty: currentQty, 
         unitPrice: currentOptionPrice, 
-        totalPrice: currentOptionPrice * currentQty
+        totalPrice: currentOptionPrice * currentQty,
+        photoReqId: photoReqId
     };
 
-    // 장바구니 중복 확인 (같은 옵션이면 합침)
-    const existingIndex = cartItems.findIndex(i => i.optionId === currentOptionId);
+    const existingIndex = cartItems.findIndex(i => i.optionId === currentOptionId && i.photoReqId === photoReqId);
     
     if(existingIndex !== -1) {
         cartItems[existingIndex].qty += currentQty;
@@ -321,15 +372,35 @@ if(btnAddCart) btnAddCart.addEventListener('click', async () => {
     }
     
     renderCart(currentOptionId);
+
+    // 사진 매칭 완료 처리 (DB 업데이트)
+    if(photoReqId) {
+        try {
+            await updateDoc(doc(db, "photo_requests", photoReqId), {
+                status: "processed",
+                matchedProduct: currentProduct.name
+            });
+            currentPhotoReqId = null;
+            header.style.backgroundColor = "transparent";
+            header.style.border = "none";
+            header.removeAttribute('data-photo-req-id');
+            document.getElementById('detail-name').textContent = currentProduct.name;
+            
+            alert("사진 요청이 처리되어 장바구니에 담겼습니다.");
+        } catch(e) { console.error("사진 상태 업데이트 실패:", e); }
+    }
 });
 
+// 장바구니 그리기
 function renderCart(highlightId = null) {
     const cartList = document.getElementById('cart-list');
     const totalEl = document.getElementById('cart-total-price');
     const countEl = document.getElementById('cart-count');
     cartList.innerHTML = ""; let totalAmount = 0;
 
-    if(cartItems.length === 0) cartList.innerHTML = "<div style='padding:40px 20px; text-align:center; color:#ccc; font-size:0.9rem;'>비어있음</div>";
+    if(cartItems.length === 0) {
+        cartList.innerHTML = "<div style='padding:40px 20px; text-align:center; color:#ccc; font-size:0.9rem;'>비어있음</div>";
+    }
 
     cartItems.forEach((item, index) => {
         totalAmount += item.totalPrice;
@@ -343,10 +414,12 @@ function renderCart(highlightId = null) {
         });
         div.title = "더블클릭: 해당 상품으로 이동";
 
+        const photoIcon = item.photoReqId ? '<span style="font-size:0.8rem;">📷</span>' : '';
+
         div.innerHTML = `
             <div class="cart-item-left">
                 <div class="cart-item-title" style="display:flex; align-items:center; gap:5px;">
-                    ${item.product.name} 
+                    ${item.product.name} ${photoIcon}
                     <span style="font-size:0.85rem; color:#888; font-weight:normal;">(${item.product.company})</span>
                 </div>
                 <div class="cart-item-desc">${item.optionName}</div>
@@ -363,13 +436,13 @@ function renderCart(highlightId = null) {
     if(countEl) countEl.textContent = cartItems.length;
 }
 
+// 장바구니 삭제 및 실행취소
 window.deleteCartItem = function(index) {
     const card = document.querySelectorAll('.cart-item-card')[index];
     deletedItemBackup = { item: cartItems[index], optionId: cartItems[index].optionId };
     if(card) card.classList.add('deleting');
     setTimeout(() => { cartItems.splice(index, 1); renderCart(); showUndoNotification(); }, 200);
 };
-
 function showUndoNotification() {
     const undoArea = document.getElementById('undo-area');
     undoArea.style.display = 'block';
@@ -378,7 +451,7 @@ function showUndoNotification() {
 }
 if(document.getElementById('btn-undo')) document.getElementById('btn-undo').addEventListener('click', () => { if(deletedItemBackup) { cartItems.push(deletedItemBackup.item); renderCart(deletedItemBackup.optionId); document.getElementById('undo-area').style.display = 'none'; } });
 
-// 주문 완료
+// [주문 완료] 버튼
 if(document.getElementById('btn-order-complete')) {
     document.getElementById('btn-order-complete').addEventListener('click', async () => {
         if(cartItems.length === 0) return;
@@ -399,17 +472,11 @@ if(document.getElementById('btn-order-complete')) {
 
 
 /* ==========================================================================
-   [7] 하단 로그 패널 (실시간 연동 & 취소 기능)
+   [7] 하단 로그 패널 (실시간 연동)
    ========================================================================== */
 function subscribeToRecentLogs() {
     const logContainer = document.getElementById('completed-order-list');
-    
-    // 최근 50개만 가져오기
-    const q = query(
-        collection(db, "order_history"), 
-        orderBy("timestamp", "desc"), 
-        limit(50)
-    );
+    const q = query(collection(db, "order_history"), orderBy("timestamp", "desc"), limit(50));
 
     onSnapshot(q, (snapshot) => {
         logContainer.innerHTML = "";
@@ -429,9 +496,7 @@ function subscribeToRecentLogs() {
                 `;
                 div.querySelector('.btn-log-restore').addEventListener('click', async () => {
                     if(confirm("취소하시겠습니까?")) {
-                        // 카트 복구 (내 화면만)
                         cartItems.push(item); renderCart(item.optionId);
-                        // DB 삭제
                         await deleteDoc(doc(db, "order_history", docSnap.id)); 
                     }
                 });
@@ -443,20 +508,23 @@ function subscribeToRecentLogs() {
 
 
 /* ==========================================================================
-   [8] 사진 업로드 및 대기열 (ON/OFF 시각적 처리)
+   [8] 사진 업로드 및 대기열 (주문장 Order Book)
    ========================================================================== */
 const btnCamera = document.getElementById('btn-camera-floating');
+const btnCameraPC = document.getElementById('btn-camera-pc'); // PC용 버튼 추가
 const cameraInput = document.getElementById('camera-input');
 const loadingSpinner = document.getElementById('loading-spinner');
 
-if(btnCamera && cameraInput) {
-    btnCamera.addEventListener('click', () => { cameraInput.click(); });
+// 카메라 버튼 공통 핸들러
+function handleCameraClick() { cameraInput.click(); }
+if(btnCamera) btnCamera.addEventListener('click', handleCameraClick);
+if(btnCameraPC) btnCameraPC.addEventListener('click', handleCameraClick);
 
+if(cameraInput) {
     cameraInput.addEventListener('change', async (e) => {
         const file = e.target.files[0];
         if(!file) return;
 
-        // 압축 설정
         const options = { maxSizeMB: 1, maxWidthOrHeight: 1024, useWebWorker: true };
 
         try {
@@ -486,45 +554,33 @@ if(btnCamera && cameraInput) {
 }
 
 function subscribeToPhotoRequests() {
-    const queueContainer = document.getElementById('photo-request-queue');
+    const queueContainer = document.getElementById('photo-grid'); // 주문장 Grid
     if(!queueContainer) return;
 
-    // 최근 72시간 이내 데이터 가져오기
+    // 최근 72시간 이내 데이터
     const threeDaysAgo = new Date(Date.now() - 72 * 60 * 60 * 1000);
     const q = query(collection(db, "photo_requests"), where("timestamp", ">", threeDaysAgo), orderBy("timestamp", "desc"));
 
     onSnapshot(q, (snapshot) => {
         queueContainer.innerHTML = "";
-        
-        if(snapshot.empty) {
-            queueContainer.style.display = "none"; 
-            return;
-        } else {
-            queueContainer.style.display = "flex"; 
-        }
+        if(snapshot.empty) { queueContainer.innerHTML = "<div style='grid-column:1/-1; text-align:center; color:#ccc; padding:50px;'>요청 내역이 없습니다.</div>"; return; }
 
-        // 1. 데이터를 배열로 변환
         let photoList = [];
         snapshot.forEach(docSnap => {
             photoList.push({ id: docSnap.id, ...docSnap.data(), docSnap: docSnap });
         });
 
-        // 2. 정렬 로직 (핵심!)
-        // 1순위: 상태 (Pending이 먼저, Processed가 나중)
-        // 2순위: 시간 (최신순)
+        // 정렬: 미처리(pending) 먼저
         photoList.sort((a, b) => {
             if (a.status === b.status) {
-                return b.timestamp.seconds - a.timestamp.seconds; // 시간 내림차순
+                return b.timestamp.seconds - a.timestamp.seconds;
             }
-            return a.status === 'pending' ? -1 : 1; // pending이면 앞으로(-1)
+            return a.status === 'pending' ? -1 : 1; 
         });
 
-        // 3. 정렬된 순서대로 화면에 그리기
         photoList.forEach(data => {
             const div = document.createElement('div');
-            
-            // 상태에 따른 클래스 추가
-            div.className = `photo-queue-item ${data.status === 'processed' ? 'done' : 'pending'}`;
+            div.className = `order-book-item ${data.status === 'processed' ? 'done' : 'pending'}`;
             div.innerHTML = `<img src="${data.imageUrl}">`;
             
             div.addEventListener('click', () => {
@@ -535,57 +591,46 @@ function subscribeToPhotoRequests() {
     });
 }
 
-// 사진 뷰어 및 상태 토글
 function showPhotoViewer(docId, imageUrl, currentStatus) {
-    let viewer = document.getElementById('photo-viewer-modal');
-    if(!viewer) {
-        viewer = document.createElement('div');
-        viewer.id = 'photo-viewer-modal';
-        viewer.style.cssText = "display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:99999; align-items:center; justify-content:center; flex-direction:column;";
-        viewer.innerHTML = `
-            <div style="position:relative; max-width:90%; max-height:80%;">
-                <img id="viewer-img" src="" style="max-width:100%; max-height:80vh; border-radius:8px;">
-                <button id="viewer-close" style="position:absolute; top:-40px; right:0; background:none; border:none; color:white; font-size:2rem; cursor:pointer;">&times;</button>
-            </div>
-            <div style="margin-top:20px; display:flex; gap:10px;">
-                <button id="btn-toggle-status" style="padding:15px 30px; font-size:1.2rem; border-radius:30px; border:none; cursor:pointer; font-weight:bold; box-shadow:0 4px 10px rgba(0,0,0,0.3);"></button>
-            </div>
-        `;
-        document.body.appendChild(viewer);
-        
-        viewer.querySelector('#viewer-close').onclick = () => viewer.style.display = 'none';
-        viewer.onclick = (e) => { if(e.target === viewer) viewer.style.display = 'none'; };
-    }
-
-    const img = viewer.querySelector('#viewer-img');
-    const btn = viewer.querySelector('#btn-toggle-status');
+    const modal = document.getElementById('photo-viewer-modal');
+    const img = modal.querySelector('#viewer-img');
+    const closeBtn = modal.querySelector('#viewer-close');
+    const toggleBtn = modal.querySelector('#btn-toggle-status');
     
+    if(!modal || !img) return;
+
     img.src = imageUrl;
     
+    // 버튼 상태 설정
     if(currentStatus === 'pending') {
-        btn.textContent = "처리 완료 (OFF)";
-        btn.style.backgroundColor = "#e74c3c";
-        btn.style.color = "white";
+        toggleBtn.textContent = "주문완료 처리"; 
+        toggleBtn.style.backgroundColor = "#27ae60"; 
+        toggleBtn.style.color = "white";
     } else {
-        btn.textContent = "다시 활성화 (ON)";
-        btn.style.backgroundColor = "#27ae60"; 
-        btn.style.color = "white";
+        toggleBtn.textContent = "주문취소 (복구)"; 
+        toggleBtn.style.backgroundColor = "#e74c3c"; 
+        toggleBtn.style.color = "white";
     }
 
-    btn.onclick = async () => {
+    // 버튼 클릭 이벤트 (기존 리스너 중복 방지 위해 onlick 사용)
+    toggleBtn.onclick = async () => {
         const newStatus = currentStatus === 'pending' ? 'processed' : 'pending';
         try {
             await updateDoc(doc(db, "photo_requests", docId), { status: newStatus });
-            viewer.style.display = 'none'; 
+            modal.style.display = 'none'; 
         } catch(e) { alert("상태 변경 실패"); }
     };
 
-    viewer.style.display = 'flex';
+    // 닫기
+    closeBtn.onclick = () => modal.style.display = 'none';
+    modal.onclick = (e) => { if(e.target === modal) modal.style.display = 'none'; };
+
+    modal.style.display = 'flex';
 }
 
 
 /* ==========================================================================
-   [9] 상품 관리(Admin)
+   [9] 상품 관리(Admin) - 리스트, 검색, 등록, 수정
    ========================================================================== */
 function renderAdminList(productsToRender) {
     const adminListContainer = document.getElementById('admin-product-list');
@@ -632,6 +677,7 @@ function renderAdminList(productsToRender) {
             document.querySelector('.menu-item[data-target="product-mgmt"]').click();
             startEditMode(item); 
         });
+
         adminListContainer.appendChild(li);
     });
 
@@ -921,6 +967,7 @@ if(btnInfo) btnInfo.addEventListener('click', () => { const modal = document.get
 document.getElementById('btn-close-modal').addEventListener('click', () => document.getElementById('info-modal').style.display = 'none');
 document.getElementById('btn-close-modal-bottom').addEventListener('click', () => document.getElementById('info-modal').style.display = 'none');
 
+// 탭 전환
 const menuItems = document.querySelectorAll('.menu-item');
 const pages = document.querySelectorAll('.content-group');
 menuItems.forEach(item => {
@@ -931,9 +978,9 @@ menuItems.forEach(item => {
         pages.forEach(page => page.style.display = 'none');
         const targetPage = document.getElementById(`page-${targetId}`);
         if (targetPage) {
-            const isFlexPage = ['product-mgmt', 'history-mgmt', 'order-mgmt', 'supplier-mgmt'].includes(targetId);
+            const isFlexPage = ['product-mgmt', 'history-mgmt', 'order-mgmt', 'supplier-mgmt', 'order-book'].includes(targetId);
             targetPage.style.display = isFlexPage ? 'flex' : 'block';
-            if(['product-mgmt', 'history-mgmt', 'supplier-mgmt'].includes(targetId)) targetPage.style.flexDirection = 'column';
+            if(['product-mgmt', 'history-mgmt', 'supplier-mgmt', 'order-book'].includes(targetId)) targetPage.style.flexDirection = 'column';
         }
         
         if(targetId === 'supplier-mgmt') loadSuppliers(); 
