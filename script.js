@@ -820,7 +820,7 @@ menuItems.forEach(item => {
             targetPage.style.display = isFlexPage ? 'flex' : 'block';
             if(['product-mgmt', 'history-mgmt', 'supplier-mgmt'].includes(targetId)) targetPage.style.flexDirection = 'column';
         }
-        
+        window.scrollTo(0, 0);
         if(targetId === 'supplier-mgmt') loadSuppliers(); 
         if(targetId === 'history-mgmt') { 
             calDate = new Date(); 
@@ -839,6 +839,7 @@ menuItems.forEach(item => {
                 if(document.getElementById('reg-options-container').children.length === 0) addOptionRow();
             }
         }
+        
     });
 });
 

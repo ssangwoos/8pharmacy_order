@@ -660,7 +660,7 @@ footer.bottom-footer {
         flex-direction: column !important;
         height: auto !important;
         overflow: visible !important;
-        display: flex !important; /* JS가 none으로 숨긴게 아니라면 flex 유지 */
+        /* display 속성은 자바스크립트(show/hide)를 따르도록 제거했습니다 */
     }
 
     /* 2. 모든 패널 너비 100% (꽉 차게) */
