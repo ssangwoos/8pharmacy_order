@@ -489,7 +489,7 @@ function subscribeToPhotoRequests() {
     const queueContainer = document.getElementById('photo-request-queue');
     if(!queueContainer) return;
 
-    // 최근 72시간 이내 데이터
+    // 최근 72시간 이내 데이터 가져오기
     const threeDaysAgo = new Date(Date.now() - 72 * 60 * 60 * 1000);
     const q = query(collection(db, "photo_requests"), where("timestamp", ">", threeDaysAgo), orderBy("timestamp", "desc"));
 
@@ -503,8 +503,24 @@ function subscribeToPhotoRequests() {
             queueContainer.style.display = "flex"; 
         }
 
+        // 1. 데이터를 배열로 변환
+        let photoList = [];
         snapshot.forEach(docSnap => {
-            const data = docSnap.data();
+            photoList.push({ id: docSnap.id, ...docSnap.data(), docSnap: docSnap });
+        });
+
+        // 2. 정렬 로직 (핵심!)
+        // 1순위: 상태 (Pending이 먼저, Processed가 나중)
+        // 2순위: 시간 (최신순)
+        photoList.sort((a, b) => {
+            if (a.status === b.status) {
+                return b.timestamp.seconds - a.timestamp.seconds; // 시간 내림차순
+            }
+            return a.status === 'pending' ? -1 : 1; // pending이면 앞으로(-1)
+        });
+
+        // 3. 정렬된 순서대로 화면에 그리기
+        photoList.forEach(data => {
             const div = document.createElement('div');
             
             // 상태에 따른 클래스 추가
@@ -512,7 +528,7 @@ function subscribeToPhotoRequests() {
             div.innerHTML = `<img src="${data.imageUrl}">`;
             
             div.addEventListener('click', () => {
-                showPhotoViewer(docSnap.id, data.imageUrl, data.status);
+                showPhotoViewer(data.id, data.imageUrl, data.status);
             });
             queueContainer.appendChild(div);
         });
