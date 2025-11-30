@@ -356,7 +356,7 @@ footer.bottom-footer {
 
 
 /* ==========================================================================
-   [10] 모바일 반응형 (화면 너비 768px 이하)
+   [10] 모바일 반응형 (화면 너비 768px 이하) - 최종 수정본
    ========================================================================== */
 @media screen and (max-width: 768px) {
     
@@ -369,7 +369,11 @@ footer.bottom-footer {
         flex-direction: column !important;
         height: auto !important;
         overflow: visible !important;
-        /* display: flex !important 삭제됨 */
+        display: flex !important; /* JS가 숨긴게 아니면 보임 */
+    }
+    /* 숨겨야 할 페이지는 다시 숨김 처리 */
+    .content-group[style*="display: none"] {
+        display: none !important;
     }
 
     /* 2. 패널 너비 100% */
@@ -409,7 +413,7 @@ footer.bottom-footer {
 
     .panel.cart-area { background-color: #fff8e1 !important; min-height: 200px; }
 
-    /* 6. 모바일 사진 대기열 최적화 (인스타 스타일) */
+    /* 6. 모바일 사진 대기열 (장바구니 위쪽) */
     #photo-request-queue {
         display: flex !important; flex-direction: row !important; overflow-x: auto !important;
         gap: 10px; padding: 15px 10px !important; background-color: #fff !important;
@@ -417,22 +421,26 @@ footer.bottom-footer {
         border-bottom: 1px solid #eee;
     }
     #photo-request-queue::-webkit-scrollbar { display: none; }
-    
     .photo-queue-item {
-        /* 모바일에서는 좀 더 크게 */
-        flex: 0 0 80px !important;
-        width: 80px !important; 
-        height: 80px !important; 
-        flex-shrink: 0 !important; 
-        border-radius: 12px !important;
+        flex: 0 0 80px !important; width: 80px !important; height: 80px !important; 
+        flex-shrink: 0 !important; border-radius: 12px !important;
     }
     
-    /* 7. 주문장 그리드 모바일 (3열) */
+    /* ★★★ [7. 핵심 수정] 주문장 사진 그리드 강제 적용 ★★★ */
     #photo-grid {
-        grid-template-columns: repeat(3, 1fr) !important;
+        display: grid !important; /* 강제 그리드 */
+        grid-template-columns: repeat(3, 1fr) !important; /* 가로 3칸 강제 */
         gap: 8px !important;
+        width: 100% !important;
+        padding-bottom: 100px !important; /* 하단 버튼 가림 방지 */
     }
     
-    /* 폼 내부 스크롤 해제 (전체 스크롤 사용) */
+    .order-book-item {
+        width: 100% !important;
+        aspect-ratio: 1 / 1 !important; /* 정사각형 유지 */
+        height: auto !important;
+    }
+
+    /* 폼 내부 스크롤 해제 */
     #product-form-body { overflow: visible !important; }
 }
