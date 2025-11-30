@@ -746,6 +746,41 @@ footer.bottom-footer {
     
     /* 폼 내부 스크롤 해제 */
     #product-form-body { overflow: visible !important; }
+
+    /* [New] 모바일 사진 대기열 꾸미기 (인스타 스토리 스타일) */
+    #photo-request-queue {
+        display: flex !important; /* 가로 배치 강제 */
+        flex-direction: row !important;
+        overflow-x: auto !important;
+        gap: 10px; /* 사진 사이 간격 넓힘 */
+        padding: 15px 10px !important; /* 터치하기 좋게 여백 확보 */
+        background-color: #fff !important; /* 흰색 배경으로 깔끔하게 */
+        border-bottom: 1px solid #eee;
+        
+        /* 스크롤바 숨기기 (심미성) */
+        -ms-overflow-style: none;  /* IE/Edge */
+        scrollbar-width: none;  /* Firefox */
+    }
+    #photo-request-queue::-webkit-scrollbar {
+        display: none; /* Chrome/Safari */
+    }
+
+    /* 사진 아이템 크기 키우기 (터치 편하게) */
+    .photo-queue-item {
+        width: 80px !important;  /* PC(60px)보다 크게 */
+        height: 80px !important;
+        flex-shrink: 0; /* 찌그러짐 방지 */
+        border-radius: 12px !important; /* 더 둥글게 */
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    
+    /* 뱃지 위치 조정 */
+    .photo-queue-badge {
+        width: 12px !important;
+        height: 12px !important;
+        top: 3px !important;
+        right: 3px !important;
+    }
 }
 
 /* [New] 사진 요청 대기열 스타일 */
