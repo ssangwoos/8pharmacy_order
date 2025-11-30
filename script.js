@@ -183,14 +183,7 @@ if(mainSearchInput) {
 }
 
 function focusProductInTree(product, optionId = null) {
-    // 사진 매칭 중인지 확인
-    if(currentPhotoReqId) {
-        if(confirm(`선택한 사진 요청을 '${product.name}' 상품과 매칭하시겠습니까?`)) {
-            displayOrderForm(product, optionId, currentPhotoReqId);
-            return;
-        }
-    }
-    
+    // 사진 매칭 로직 제거됨 (단순 이동)
     displayOrderForm(product, optionId);
     setTimeout(() => {
         const targetNode = document.querySelector(`.tree-node[data-id="${product.id}"]`);
@@ -216,7 +209,7 @@ function focusProductInTree(product, optionId = null) {
 /* ==========================================================================
    [5] 중앙 상세화면 (주문 폼)
    ========================================================================== */
-function displayOrderForm(item, targetOptionId = null, photoReqId = null) {
+function displayOrderForm(item, targetOptionId = null) {
     currentProduct = item; 
     currentQty = 1; 
 
@@ -226,19 +219,10 @@ function displayOrderForm(item, targetOptionId = null, photoReqId = null) {
     document.getElementById('detail-name').textContent = item.name;
     document.getElementById('detail-company').textContent = item.company;
 
-    // 사진 매칭 모드 UI 처리
+    // 헤더 초기화 (사진매칭 스타일 제거)
     const header = document.querySelector('.order-header');
-    if(photoReqId) {
-        header.style.backgroundColor = "#fff8e1";
-        header.style.border = "1px solid #f39c12";
-        header.style.padding = "10px";
-        header.setAttribute('data-photo-req-id', photoReqId); 
-        document.getElementById('detail-name').innerHTML = `${item.name} <span style="font-size:0.8rem; color:#e67e22;">(사진 매칭중)</span>`;
-    } else {
-        header.style.backgroundColor = "transparent";
-        header.style.border = "none";
-        header.removeAttribute('data-photo-req-id');
-    }
+    header.style.backgroundColor = "transparent";
+    header.style.border = "none";
 
     const optionContainer = document.getElementById('option-list-container');
     optionContainer.innerHTML = ""; 
@@ -316,9 +300,6 @@ if(btnAddCart) btnAddCart.addEventListener('click', async () => {
     const selectedOptionEl = document.querySelector('.option-card.selected');
     const optionName = selectedOptionEl ? selectedOptionEl.querySelector('.option-name').textContent : "기본옵션";
     
-    const header = document.querySelector('.order-header');
-    const photoReqId = header.getAttribute('data-photo-req-id'); 
-    
     const newItem = { 
         cartId: Date.now(), 
         optionId: currentOptionId, 
@@ -326,12 +307,11 @@ if(btnAddCart) btnAddCart.addEventListener('click', async () => {
         optionName: optionName, 
         qty: currentQty, 
         unitPrice: currentOptionPrice, 
-        totalPrice: currentOptionPrice * currentQty,
-        photoReqId: photoReqId
+        totalPrice: currentOptionPrice * currentQty
     };
 
-    // 장바구니 중복 확인 (같은 옵션, 같은 사진요청이면 합침)
-    const existingIndex = cartItems.findIndex(i => i.optionId === currentOptionId && i.photoReqId === photoReqId);
+    // 장바구니 중복 확인 (같은 옵션이면 합침)
+    const existingIndex = cartItems.findIndex(i => i.optionId === currentOptionId);
     
     if(existingIndex !== -1) {
         cartItems[existingIndex].qty += currentQty;
@@ -341,23 +321,6 @@ if(btnAddCart) btnAddCart.addEventListener('click', async () => {
     }
     
     renderCart(currentOptionId);
-
-    // 사진 매칭 완료 시 DB 업데이트
-    if(photoReqId) {
-        try {
-            await updateDoc(doc(db, "photo_requests", photoReqId), {
-                status: "processed",
-                matchedProduct: currentProduct.name
-            });
-            currentPhotoReqId = null;
-            header.style.backgroundColor = "transparent";
-            header.style.border = "none";
-            header.removeAttribute('data-photo-req-id');
-            document.getElementById('detail-name').textContent = currentProduct.name;
-            
-            alert("사진 요청이 처리되어 장바구니에 담겼습니다.");
-        } catch(e) { console.error("사진 상태 업데이트 실패:", e); }
-    }
 });
 
 function renderCart(highlightId = null) {
@@ -380,12 +343,10 @@ function renderCart(highlightId = null) {
         });
         div.title = "더블클릭: 해당 상품으로 이동";
 
-        const photoIcon = item.photoReqId ? '<span style="font-size:0.8rem;">📷</span>' : '';
-
         div.innerHTML = `
             <div class="cart-item-left">
                 <div class="cart-item-title" style="display:flex; align-items:center; gap:5px;">
-                    ${item.product.name} ${photoIcon}
+                    ${item.product.name} 
                     <span style="font-size:0.85rem; color:#888; font-weight:normal;">(${item.product.company})</span>
                 </div>
                 <div class="cart-item-desc">${item.optionName}</div>
@@ -438,12 +399,12 @@ if(document.getElementById('btn-order-complete')) {
 
 
 /* ==========================================================================
-   [7] 하단 로그 패널 (실시간 연동)
+   [7] 하단 로그 패널 (실시간 연동 & 취소 기능)
    ========================================================================== */
 function subscribeToRecentLogs() {
     const logContainer = document.getElementById('completed-order-list');
     
-    // 400 에러 방지를 위해 orderBy + limit 사용 (where 조건 잠시 제거)
+    // 최근 50개만 가져오기
     const q = query(
         collection(db, "order_history"), 
         orderBy("timestamp", "desc"), 
@@ -468,7 +429,7 @@ function subscribeToRecentLogs() {
                 `;
                 div.querySelector('.btn-log-restore').addEventListener('click', async () => {
                     if(confirm("취소하시겠습니까?")) {
-                        // 카트 복구
+                        // 카트 복구 (내 화면만)
                         cartItems.push(item); renderCart(item.optionId);
                         // DB 삭제
                         await deleteDoc(doc(db, "order_history", docSnap.id)); 
@@ -482,7 +443,7 @@ function subscribeToRecentLogs() {
 
 
 /* ==========================================================================
-   [8] 사진 업로드 및 대기열
+   [8] 사진 업로드 및 대기열 (ON/OFF 시각적 처리)
    ========================================================================== */
 const btnCamera = document.getElementById('btn-camera-floating');
 const cameraInput = document.getElementById('camera-input');
@@ -495,7 +456,7 @@ if(btnCamera && cameraInput) {
         const file = e.target.files[0];
         if(!file) return;
 
-        // 압축 설정 (속도 위해 완화)
+        // 압축 설정
         const options = { maxSizeMB: 1, maxWidthOrHeight: 1024, useWebWorker: true };
 
         try {
@@ -528,37 +489,87 @@ function subscribeToPhotoRequests() {
     const queueContainer = document.getElementById('photo-request-queue');
     if(!queueContainer) return;
 
-    const q = query(collection(db, "photo_requests"), where("status", "==", "pending"), orderBy("timestamp", "asc"));
+    // 최근 72시간 이내 데이터
+    const threeDaysAgo = new Date(Date.now() - 72 * 60 * 60 * 1000);
+    const q = query(collection(db, "photo_requests"), where("timestamp", ">", threeDaysAgo), orderBy("timestamp", "desc"));
 
     onSnapshot(q, (snapshot) => {
         queueContainer.innerHTML = "";
-        if(snapshot.empty) { queueContainer.style.display = "none"; return; } 
-        else { queueContainer.style.display = "flex"; }
+        
+        if(snapshot.empty) {
+            queueContainer.style.display = "none"; 
+            return;
+        } else {
+            queueContainer.style.display = "flex"; 
+        }
 
         snapshot.forEach(docSnap => {
             const data = docSnap.data();
             const div = document.createElement('div');
-            div.className = 'photo-queue-item';
-            div.innerHTML = `<img src="${data.imageUrl}"><div class="photo-queue-badge"></div>`;
+            
+            // 상태에 따른 클래스 추가
+            div.className = `photo-queue-item ${data.status === 'processed' ? 'done' : 'pending'}`;
+            div.innerHTML = `<img src="${data.imageUrl}">`;
             
             div.addEventListener('click', () => {
-                currentPhotoReqId = docSnap.id;
-                if(confirm("이 사진으로 상품을 찾으시겠습니까?\n확인 후 리스트에서 상품을 선택하면 자동으로 매칭됩니다.")) {
-                    window.open(data.imageUrl, "_blank", "width=500,height=500");
-                    const searchInput = document.getElementById('main-search-input');
-                    if(searchInput) { searchInput.focus(); searchInput.placeholder = "사진 속 약품명을 검색하세요..."; }
-                } else {
-                    currentPhotoReqId = null;
-                }
+                showPhotoViewer(docSnap.id, data.imageUrl, data.status);
             });
             queueContainer.appendChild(div);
         });
     });
 }
 
+// 사진 뷰어 및 상태 토글
+function showPhotoViewer(docId, imageUrl, currentStatus) {
+    let viewer = document.getElementById('photo-viewer-modal');
+    if(!viewer) {
+        viewer = document.createElement('div');
+        viewer.id = 'photo-viewer-modal';
+        viewer.style.cssText = "display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:99999; align-items:center; justify-content:center; flex-direction:column;";
+        viewer.innerHTML = `
+            <div style="position:relative; max-width:90%; max-height:80%;">
+                <img id="viewer-img" src="" style="max-width:100%; max-height:80vh; border-radius:8px;">
+                <button id="viewer-close" style="position:absolute; top:-40px; right:0; background:none; border:none; color:white; font-size:2rem; cursor:pointer;">&times;</button>
+            </div>
+            <div style="margin-top:20px; display:flex; gap:10px;">
+                <button id="btn-toggle-status" style="padding:15px 30px; font-size:1.2rem; border-radius:30px; border:none; cursor:pointer; font-weight:bold; box-shadow:0 4px 10px rgba(0,0,0,0.3);"></button>
+            </div>
+        `;
+        document.body.appendChild(viewer);
+        
+        viewer.querySelector('#viewer-close').onclick = () => viewer.style.display = 'none';
+        viewer.onclick = (e) => { if(e.target === viewer) viewer.style.display = 'none'; };
+    }
+
+    const img = viewer.querySelector('#viewer-img');
+    const btn = viewer.querySelector('#btn-toggle-status');
+    
+    img.src = imageUrl;
+    
+    if(currentStatus === 'pending') {
+        btn.textContent = "처리 완료 (OFF)";
+        btn.style.backgroundColor = "#e74c3c";
+        btn.style.color = "white";
+    } else {
+        btn.textContent = "다시 활성화 (ON)";
+        btn.style.backgroundColor = "#27ae60"; 
+        btn.style.color = "white";
+    }
+
+    btn.onclick = async () => {
+        const newStatus = currentStatus === 'pending' ? 'processed' : 'pending';
+        try {
+            await updateDoc(doc(db, "photo_requests", docId), { status: newStatus });
+            viewer.style.display = 'none'; 
+        } catch(e) { alert("상태 변경 실패"); }
+    };
+
+    viewer.style.display = 'flex';
+}
+
 
 /* ==========================================================================
-   [9] 상품 관리(Admin) - 리스트, 검색, 등록, 수정
+   [9] 상품 관리(Admin)
    ========================================================================== */
 function renderAdminList(productsToRender) {
     const adminListContainer = document.getElementById('admin-product-list');
@@ -810,53 +821,8 @@ async function loadHistoryByDate(dateStr) {
 
 
 /* ==========================================================================
-   [11] 기타 거래처/메뉴/초기화
+   [11] 기타 거래처/메뉴/초기화 (필수)
    ========================================================================== */
-// (거래처 관리 로직 포함 - loadSuppliers 등)
-// ... 이전에 작성된 거래처 관리 코드와 동일한 내용입니다 ...
-// (위 코드에 모두 포함되어 있으므로 그대로 사용하시면 됩니다)
-async function loadSuppliers() {
-    const listContainer = document.getElementById('supplier-list');
-    if(!listContainer) return;
-    listContainer.innerHTML = "<div style='text-align:center; padding:20px; color:#aaa;'>로딩중...</div>";
-    try {
-        const supSnapshot = await getDocs(collection(db, "suppliers"));
-        let suppliers = [];
-        supSnapshot.forEach(doc => suppliers.push({ id: doc.id, ...doc.data() }));
-        const prodSnapshot = await getDocs(collection(db, "products"));
-        const companyProductMap = {}; 
-        prodSnapshot.forEach(doc => {
-            const p = { id: doc.id, ...doc.data() };
-            const comp = p.company || "미지정";
-            if(!companyProductMap[comp]) companyProductMap[comp] = [];
-            companyProductMap[comp].push(p);
-        });
-        document.getElementById('sup-total-count').textContent = suppliers.length;
-        listContainer.innerHTML = "";
-        if(suppliers.length === 0) listContainer.innerHTML = "<div style='text-align:center; padding:20px; color:#aaa;'>등록된 거래처가 없습니다.</div>";
-        suppliers.sort((a, b) => a.name.localeCompare(b.name));
-        suppliers.forEach(sup => {
-            const div = document.createElement('div');
-            div.className = 'supplier-card';
-            let tagsHtml = "";
-            const products = companyProductMap[sup.name] || [];
-            const displayLimit = 10;
-            products.slice(0, displayLimit).forEach(p => {
-                tagsHtml += `<span class="product-tag-chip" onclick="event.stopPropagation(); triggerTagAction('${p.id}')">#${p.name}</span>`;
-            });
-            if(products.length > displayLimit) tagsHtml += `<span style="font-size:0.7rem; color:#888;">+${products.length - displayLimit} more</span>`;
-            if(products.length === 0) tagsHtml = `<span style="font-size:0.75rem; color:#ccc;">등록 상품 없음</span>`;
-            div.innerHTML = `<div class="sup-header"><div class="sup-name">${sup.name}</div></div><div class="sup-manager-info">👤 ${sup.curManagerName || '-'} (${sup.curManagerPhone || '-'})</div><div class="sup-product-tags">${tagsHtml}</div>`;
-            div.addEventListener('click', () => {
-                document.querySelectorAll('.supplier-card').forEach(c => c.classList.remove('active'));
-                div.classList.add('active');
-                fillSupplierForm(sup);
-            });
-            listContainer.appendChild(div);
-        });
-    } catch (e) { console.error(e); }
-}
-
 window.triggerTagAction = function(productId) {
     document.querySelector('.menu-item[data-target="order-mgmt"]').click();
     setTimeout(() => {
@@ -939,7 +905,6 @@ if(btnInfo) btnInfo.addEventListener('click', () => { const modal = document.get
 document.getElementById('btn-close-modal').addEventListener('click', () => document.getElementById('info-modal').style.display = 'none');
 document.getElementById('btn-close-modal-bottom').addEventListener('click', () => document.getElementById('info-modal').style.display = 'none');
 
-// 탭 전환
 const menuItems = document.querySelectorAll('.menu-item');
 const pages = document.querySelectorAll('.content-group');
 menuItems.forEach(item => {
@@ -977,7 +942,7 @@ menuItems.forEach(item => {
     });
 });
 
-// 초기 실행
+// [12] 초기 실행
 loadProducts();
 subscribeToRecentLogs();
 subscribeToPhotoRequests();
