@@ -11,19 +11,15 @@
 
     <header class="top-header">
         <div class="logo">PharmaOrder OS</div>
-        
         <div class="search-bar">
             <input id="main-search-input" type="text" placeholder="🔍 약품명, 성분명, 제약사 검색 (Enter)">
         </div>
-
         <div class="user-info">관리약사: 홍길동 님 <span style="color:#27ae60">● Online</span></div>
     </header>
 
     <div class="main-container">
         
         <nav class="panel menu-sidebar">
-            <div class="panel-header">MENU</div>
-            
             <div class="pharmacy-brand-area">
                 <div class="brand-logo-placeholder">🏥</div> 
                 <div class="brand-name-text">에이트약국</div>
@@ -90,6 +86,7 @@
             <aside class="panel cart-area">
                 <div class="panel-header">장바구니 (Cart) <span id="cart-count" style="background:#e74c3c; color:white; border-radius:50%; padding:2px 6px; font-size:0.8rem;">0</span></div>
                 <div id="photo-request-queue"></div>
+                
                 <div id="undo-area" style="display:none; background:#333; color:white; padding:10px; text-align:center; font-size:0.9rem;">삭제되었습니다. <button id="btn-undo" style="margin-left:10px; border:1px solid #aaa; background:transparent; color:#fff; cursor:pointer;">실행취소</button></div>
                 <div id="cart-list"><div style="padding:20px; text-align:center; color:#ccc;">비어있음</div></div>
                 <div class="cart-total">
@@ -143,7 +140,7 @@
                             <div><label style="font-weight:bold; display:block; margin-bottom:5px;">카테고리</label><select id="reg-category" style="width:100%; padding:10px; border:1px solid #ccc;"><option value="전문의약품">전문의약품</option><option value="일반의약품" selected>일반의약품</option><option value="의약외품">의약외품</option></select></div>
                             <div><label style="font-weight:bold; display:block; margin-bottom:5px;">제약회사</label><div style="display:flex; gap:8px;"><select id="reg-company" style="flex:1; padding:10px; border:1px solid #ccc;"><option value="">선택</option></select><button id="btn-quick-sup-open" style="padding:0 15px; background:#34495e; color:white; border:none;">+ 퀵등록</button></div></div>
                             <div><label style="font-weight:bold; display:block; margin-bottom:5px;">약품명</label><input type="text" id="reg-name" placeholder="예: 마이딜액 5%" style="width:100%; padding:10px; border:1px solid #ccc;"></div>
-                            <div style="background:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #e9ecef;"><label style="font-weight:bold; display:block; margin-bottom:10px;">옵션 및 가격</label><div style="display:flex; gap:10px; margin-bottom:5px; color:#888;"><span style="flex:2;">옵션명</span><span style="flex:1;">가격</span><span style="width:35px;"></span></div><div id="reg-options-container" style="display:flex; flex-direction:column; gap:8px;"></div><button id="btn-add-option-row" style="width:100%; padding:8px; margin-top:10px; border:1px dashed #aaa; background:#fff;">+ 옵션 추가</button></div>
+                            <div style="background:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #e9ecef;"><label style="font-weight:bold; display:block; margin-bottom:10px;">주문 옵션 및 가격</label><div style="display:flex; gap:10px; margin-bottom:5px; color:#888;"><span style="flex:2;">옵션명</span><span style="flex:1;">가격</span><span style="width:35px;"></span></div><div id="reg-options-container" style="display:flex; flex-direction:column; gap:8px;"></div><button id="btn-add-option-row" style="width:100%; padding:8px; margin-top:10px; border:1px dashed #aaa; background:#fff;">+ 옵션 추가</button></div>
                             <div style="height: 10px;"></div>
                         </div>
                     </div>
@@ -155,6 +152,7 @@
                 </div>
             </div>
         </div>
+
         <div id="page-settings" class="content-group" style="display: none; padding: 20px; flex-grow: 1;"><h2>⚙️ 설정</h2></div>
     </div>
 
@@ -190,10 +188,20 @@
         </div>
     </div>
 
+    <div id="source-select-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:99999; align-items:flex-end; justify-content:center;">
+        <div style="background:white; width:100%; max-width:500px; border-radius:20px 20px 0 0; padding:25px; animation: slideUp 0.3s ease-out;">
+            <h3 style="margin-bottom:20px; text-align:center; color:#333;">사진 업로드 방식 선택</h3>
+            <div style="display:flex; flex-direction:column; gap:15px;">
+                <button id="btn-select-camera" style="padding:15px; font-size:1.1rem; background:#f8f9fa; border:2px solid #eee; border-radius:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;"><span>📸</span> 직접 촬영하기</button>
+                <button id="btn-select-gallery" style="padding:15px; font-size:1.1rem; background:#f8f9fa; border:2px solid #eee; border-radius:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:10px;"><span>🖼️</span> 앨범에서 선택</button>
+                <button id="btn-select-cancel" style="padding:15px; font-size:1.1rem; background:#333; color:white; border:none; border-radius:12px; cursor:pointer; margin-top:10px;">취소</button>
+            </div>
+        </div>
+    </div>
+
     <div id="info-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
         <div style="background:white; width:800px; height:80%; padding:30px; border-radius:8px; display:flex; flex-direction:column;"><div style="display:flex; justify-content:space-between; margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:15px;"><h3 style="font-size:1.5rem;">💊 약품 상세 정보</h3><button id="btn-close-modal" style="background:none; border:none; font-size:1.5rem;">&times;</button></div><div style="flex-grow:1; overflow-y:auto;"><p id="modal-content"></p></div><div style="margin-top:20px; text-align:right;"><button id="btn-close-modal-bottom" style="padding:10px 20px; background:#333; color:white; border:none;">닫기</button></div></div>
     </div>
-
     <div id="quick-sup-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center;">
         <div style="background:white; width:350px; padding:25px; border-radius:8px;"><h3 style="margin-bottom:15px;">⚡ 거래처 퀵 등록</h3><input type="text" id="quick-sup-name" placeholder="거래처명" style="width:100%; padding:10px; border:1px solid #ccc; margin-bottom:15px;"><div style="display:flex; justify-content:flex-end; gap:10px;"><button id="btn-quick-sup-cancel" style="padding:8px 15px; background:#eee; border:none;">취소</button><button id="btn-quick-sup-save" style="padding:8px 15px; background:#2980b9; color:white; border:none;">등록</button></div></div>
     </div>
@@ -202,7 +210,8 @@
         <div class="spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom:15px;"></div><div>처리 중...</div>
     </div>
 
-    <input type="file" id="camera-input" accept="image/*" capture="environment" style="display:none;">
+    <input type="file" id="input-camera" accept="image/*" capture="environment" style="display:none;">
+    <input type="file" id="input-gallery" accept="image/*" style="display:none;">
     <button id="btn-camera-floating" style="position:fixed; bottom:80px; right:20px; width:60px; height:60px; border-radius:50%; background:#e74c3c; color:white; border:none; box-shadow:0 4px 10px rgba(0,0,0,0.3); font-size:2rem; cursor:pointer; z-index:9999; display:flex; align-items:center; justify-content:center;">📷</button>
 
     <script type="module" src="script.js"></script>
