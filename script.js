@@ -467,60 +467,70 @@ function subscribeToRecentLogs() {
    [9] 사진 업로드 & 대기열 (주문장)
    ========================================================================== */
 const btnCamera = document.getElementById('btn-camera-floating');
-const cameraInput = document.getElementById('camera-input');
 const loadingSpinner = document.getElementById('loading-spinner');
 
-// 소스 선택 모달 및 버튼
+// 모달 및 입력창 요소들 (ID 수정됨)
 const sourceModal = document.getElementById('source-select-modal');
-const inputGallery = document.getElementById('input-gallery');
+const inputCamera = document.getElementById('file-input-camera');   // 카메라용
+const inputGallery = document.getElementById('file-input-gallery'); // 갤러리용
 
-function openSourceModal() { if(sourceModal) sourceModal.style.display = 'flex'; }
+// 1. 플로팅 버튼 클릭 -> 선택 모달 열기
+function openSourceModal() {
+    if(sourceModal) sourceModal.style.display = 'flex';
+}
 if(btnCamera) btnCamera.addEventListener('click', openSourceModal);
 
-// 모달 내부 버튼 동작
+// 2. 모달 내부 버튼 동작 연결
 if(document.getElementById('btn-select-camera')) {
-    document.getElementById('btn-select-camera').addEventListener('click', () => {
+    document.getElementById('btn-select-camera').onclick = () => {
         sourceModal.style.display = 'none';
-        if(cameraInput) cameraInput.click();
-    });
+        if(inputCamera) inputCamera.click(); // 카메라 input 실행
+    };
 }
 if(document.getElementById('btn-select-gallery')) {
-    document.getElementById('btn-select-gallery').addEventListener('click', () => {
+    document.getElementById('btn-select-gallery').onclick = () => {
         sourceModal.style.display = 'none';
-        if(inputGallery) inputGallery.click();
-    });
+        if(inputGallery) inputGallery.click(); // 갤러리 input 실행
+    };
 }
 if(document.getElementById('btn-select-cancel')) {
-    document.getElementById('btn-select-cancel').addEventListener('click', () => {
+    document.getElementById('btn-select-cancel').onclick = () => {
         sourceModal.style.display = 'none';
-    });
+    };
 }
 
-// 공통 업로드 핸들러
+// 3. 공통 업로드 처리 함수 (어느 input이든 파일이 들어오면 실행)
 async function handleFileUpload(e) {
     const file = e.target.files[0];
     if(!file) return;
 
+    // 모달 준비
     const uploadModal = document.getElementById('upload-confirm-modal');
     const previewImg = document.getElementById('upload-preview-img');
     const uploadNote = document.getElementById('upload-note');
     
-    window.tempUploadFile = file; // 전역 임시 저장
+    // 전역 변수에 파일 임시 저장
+    window.tempUploadFile = file; 
     
+    // 미리보기 표시
     const reader = new FileReader();
-    reader.onload = (event) => { if(previewImg) previewImg.src = event.target.result; };
+    reader.onload = (event) => { 
+        if(previewImg) previewImg.src = event.target.result; 
+    };
     reader.readAsDataURL(file);
     
-    if(uploadNote) uploadNote.value = "";
+    if(uploadNote) uploadNote.value = ""; // 메모 초기화
     if(uploadModal) uploadModal.style.display = 'flex';
     
-    e.target.value = ''; // 초기화
+    // 입력값 초기화 (같은 파일 다시 선택 가능하게)
+    e.target.value = '';
 }
 
-if(cameraInput) cameraInput.addEventListener('change', handleFileUpload);
+// 4. 두 입력창에 이벤트 리스너 연결
+if(inputCamera) inputCamera.addEventListener('change', handleFileUpload);
 if(inputGallery) inputGallery.addEventListener('change', handleFileUpload);
 
-// 업로드 취소
+// 5. 업로드 취소
 if(document.getElementById('btn-upload-cancel')) {
     document.getElementById('btn-upload-cancel').addEventListener('click', () => {
         document.getElementById('upload-confirm-modal').style.display = 'none';
@@ -528,15 +538,21 @@ if(document.getElementById('btn-upload-cancel')) {
     });
 }
 
-// 업로드 확정 (메모 포함)
+// 6. 업로드 확정 (전송하기)
 if(document.getElementById('btn-upload-confirm')) {
-    document.getElementById('btn-upload-confirm').addEventListener('click', async () => {
+    // 기존 리스너 제거 후 재생성 (중복 방지)
+    const oldBtn = document.getElementById('btn-upload-confirm');
+    const newBtn = oldBtn.cloneNode(true);
+    oldBtn.parentNode.replaceChild(newBtn, oldBtn);
+
+    newBtn.addEventListener('click', async () => {
         const file = window.tempUploadFile;
         if(!file) return;
         
         const note = document.getElementById('upload-note').value;
         document.getElementById('upload-confirm-modal').style.display = 'none';
         
+        // 압축 옵션 (속도 최적화)
         const options = { maxSizeMB: 1, maxWidthOrHeight: 1024, useWebWorker: true };
 
         try {
@@ -559,7 +575,7 @@ if(document.getElementById('btn-upload-confirm')) {
         } catch(error) {
             console.error(error);
             if(loadingSpinner) loadingSpinner.style.display = 'none';
-            alert("오류 발생");
+            alert("업로드 실패");
         }
     });
 }

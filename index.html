@@ -210,10 +210,11 @@
         <div class="spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom:15px;"></div><div>처리 중...</div>
     </div>
 
-    <input type="file" id="input-camera" accept="image/*" capture="environment" style="display:none;">
-    <input type="file" id="input-gallery" accept="image/*" style="display:none;">
-    <button id="btn-camera-floating" style="position:fixed; bottom:80px; right:20px; width:60px; height:60px; border-radius:50%; background:#e74c3c; color:white; border:none; box-shadow:0 4px 10px rgba(0,0,0,0.3); font-size:2rem; cursor:pointer; z-index:9999; display:flex; align-items:center; justify-content:center;">📷</button>
+    <input type="file" id="file-input-camera" accept="image/*" capture="environment" style="display:none;">
+    
+    <input type="file" id="file-input-gallery" accept="image/*" style="display:none;">
 
+    <button id="btn-camera-floating" style="position:fixed; bottom:80px; right:20px; width:60px; height:60px; border-radius:50%; background:#e74c3c; color:white; border:none; box-shadow:0 4px 10px rgba(0,0,0,0.3); font-size:2rem; cursor:pointer; z-index:9999; display:flex; align-items:center; justify-content:center;">📷</button>
     <script type="module" src="script.js"></script>
 </body>
 </html>
