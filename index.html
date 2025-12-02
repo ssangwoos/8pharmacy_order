@@ -18,13 +18,11 @@
     </header>
 
     <div class="main-container">
-        
         <nav class="panel menu-sidebar">
             <div class="pharmacy-brand-area">
                 <div class="brand-logo-placeholder">🏥</div> 
                 <div class="brand-name-text">에이트약국</div>
             </div>
-
             <div class="menu-item active" data-target="order-book">📝 주문장<span class="menu-sub-text">(Order Book)</span></div>
             <div class="menu-item" data-target="order-mgmt">통합 주문 관리</div>
             <div class="menu-item" data-target="history-mgmt">주문 기록 관리</div>
@@ -86,7 +84,6 @@
             <aside class="panel cart-area">
                 <div class="panel-header">장바구니 (Cart) <span id="cart-count" style="background:#e74c3c; color:white; border-radius:50%; padding:2px 6px; font-size:0.8rem;">0</span></div>
                 <div id="photo-request-queue"></div>
-                
                 <div id="undo-area" style="display:none; background:#333; color:white; padding:10px; text-align:center; font-size:0.9rem;">삭제되었습니다. <button id="btn-undo" style="margin-left:10px; border:1px solid #aaa; background:transparent; color:#fff; cursor:pointer;">실행취소</button></div>
                 <div id="cart-list"><div style="padding:20px; text-align:center; color:#ccc;">비어있음</div></div>
                 <div class="cart-total">
@@ -144,7 +141,10 @@
                             <div style="height: 10px;"></div>
                         </div>
                     </div>
-                    <div style="padding: 15px 20px; border-top:1px solid #eee; background-color:#f9f9f9; flex-shrink:0;"><button id="btn-register" style="width:100%; padding:12px; background:#27ae60; color:white; border:none; font-weight:bold;">상품 등록하기</button></div>
+                    <div style="padding: 15px 20px; border-top:1px solid #eee; background-color:#f9f9f9; flex-shrink:0; display:flex; gap:10px;">
+                        <button id="btn-cancel-edit" style="flex:1; padding:12px; background:#95a5a6; color:white; border:none; cursor:pointer; border-radius:4px; font-weight:bold; display:none;">취소</button>
+                        <button id="btn-register" style="flex:2; padding:12px; background:#27ae60; color:white; border:none; cursor:pointer; border-radius:4px; font-size:1.1rem; font-weight:bold;">상품 등록하기</button>
+                    </div>
                 </div>
                 <div style="flex:1; background:#fff; border:1px solid #ccc; border-radius:8px; display:flex; flex-direction:column; overflow:hidden;">
                     <div style="padding:20px; border-bottom:1px solid #eee; background-color:#fff;"><h3 style="margin:0 0 10px 0;">등록된 상품 목록 <span id="admin-list-count" style="font-size:0.9rem; color:#888;"></span></h3><input type="text" id="admin-product-search" placeholder="검색..." style="width:100%; padding:10px; border:1px solid #ddd; background:#f9f9f9;"></div>
@@ -169,9 +169,8 @@
             <button id="viewer-close" style="position:absolute; top:-40px; right:0; background:none; border:none; color:white; font-size:2.5rem; cursor:pointer;">&times;</button>
         </div>
         <div id="viewer-note" style="background:rgba(255,255,255,0.9); padding:10px 20px; border-radius:20px; margin-top:15px; font-weight:bold; color:#333; max-width:90%; text-align:center;"></div>
-        <div style="margin-top:15px;">
-            <button id="btn-toggle-status" style="padding:12px 30px; font-size:1.1rem; border-radius:30px; border:none; cursor:pointer; font-weight:bold; box-shadow:0 4px 10px rgba(0,0,0,0.3); transition: transform 0.1s;">상태변경</button>
-        </div>
+        
+        <div id="viewer-buttons" style="margin-top:15px; display:flex; gap:10px;"></div>
     </div>
 
     <div id="upload-confirm-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:999999; align-items:center; justify-content:center; flex-direction:column;">
@@ -202,6 +201,7 @@
     <div id="info-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
         <div style="background:white; width:800px; height:80%; padding:30px; border-radius:8px; display:flex; flex-direction:column;"><div style="display:flex; justify-content:space-between; margin-bottom:20px; border-bottom:1px solid #eee; padding-bottom:15px;"><h3 style="font-size:1.5rem;">💊 약품 상세 정보</h3><button id="btn-close-modal" style="background:none; border:none; font-size:1.5rem;">&times;</button></div><div style="flex-grow:1; overflow-y:auto;"><p id="modal-content"></p></div><div style="margin-top:20px; text-align:right;"><button id="btn-close-modal-bottom" style="padding:10px 20px; background:#333; color:white; border:none;">닫기</button></div></div>
     </div>
+
     <div id="quick-sup-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:99999; align-items:center; justify-content:center;">
         <div style="background:white; width:350px; padding:25px; border-radius:8px;"><h3 style="margin-bottom:15px;">⚡ 거래처 퀵 등록</h3><input type="text" id="quick-sup-name" placeholder="거래처명" style="width:100%; padding:10px; border:1px solid #ccc; margin-bottom:15px;"><div style="display:flex; justify-content:flex-end; gap:10px;"><button id="btn-quick-sup-cancel" style="padding:8px 15px; background:#eee; border:none;">취소</button><button id="btn-quick-sup-save" style="padding:8px 15px; background:#2980b9; color:white; border:none;">등록</button></div></div>
     </div>
@@ -211,10 +211,9 @@
     </div>
 
     <input type="file" id="file-input-camera" accept="image/*" capture="environment" style="display:none;">
-    
     <input type="file" id="file-input-gallery" accept="image/*" style="display:none;">
-
     <button id="btn-camera-floating" style="position:fixed; bottom:80px; right:20px; width:60px; height:60px; border-radius:50%; background:#e74c3c; color:white; border:none; box-shadow:0 4px 10px rgba(0,0,0,0.3); font-size:2rem; cursor:pointer; z-index:9999; display:flex; align-items:center; justify-content:center;">📷</button>
+
     <script type="module" src="script.js"></script>
 </body>
 </html>

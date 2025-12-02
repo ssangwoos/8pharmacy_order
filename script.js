@@ -1,11 +1,10 @@
 /* ==========================================================================
-   [1] Firebase 설정 및 라이브러리 임포트
+   [1] Firebase 설정
    ========================================================================== */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getFirestore, collection, getDocs, addDoc, deleteDoc, updateDoc, doc, query, where, orderBy, onSnapshot, limit } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
 
-// ★ 중요: 본인의 Firebase 프로젝트 키값으로 반드시 교체하세요!
 const firebaseConfig = {
     apiKey: "AIzaSyA250TRzQCM9FMqiXBROX3IknKE1FZp5rc", 
     authDomain: "pharmacy-order-5ddc5.firebaseapp.com",
@@ -20,155 +19,76 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 console.log("🔥 Firebase Connected!");
 
+/* [2] 전역 변수 */
+let currentProduct = null; let currentQty = 1; let currentOptionPrice = 0; let currentOptionId = null;
+let cartItems = []; let deletedItemBackup = null; let undoTimeout = null;
+let calDate = new Date(); let selectedDateStr = null; 
+let currentSupplierId = null; let editingProductId = null; let allProductsData = []; 
+let currentPhotoReqId = null; let tempUploadFile = null;
 
-/* ==========================================================================
-   [2] 전역 변수 선언
-   ========================================================================== */
-// 주문 처리 관련
-let currentProduct = null;      
-let currentQty = 1;             
-let currentOptionPrice = 0;     
-let currentOptionId = null;     
-let cartItems = [];             
-
-// 장바구니 실행 취소
-let deletedItemBackup = null;   
-let undoTimeout = null;         
-
-// 달력 및 기록
-let calDate = new Date(); 
-let selectedDateStr = null; 
-
-// 관리자(Admin) 관련
-let currentSupplierId = null;
-let editingProductId = null; 
-let allProductsData = []; // 검색 최적화를 위한 데이터 캐싱
-
-// 사진 요청 관련
-let currentPhotoReqId = null; 
-let tempUploadFile = null; // 파일 업로드 중간 저장용
-
-
-/* ==========================================================================
-   [3] 공통 초기화 및 모달 닫기 이벤트
-   ========================================================================== */
-// 모든 모달의 닫기 버튼 연결
+/* [3] 초기화 */
 document.querySelectorAll('[id^="btn-close"]').forEach(btn => {
     btn.addEventListener('click', (e) => {
         const modal = e.target.closest('[id$="-modal"]');
         if(modal) modal.style.display = 'none';
     });
 });
-
-// 사진 뷰어 닫기 (배경 클릭 시)
-const viewerModal = document.getElementById('photo-viewer-modal');
-if(viewerModal) {
-    viewerModal.addEventListener('click', (e) => { 
-        if(e.target === viewerModal) viewerModal.style.display = 'none'; 
-    });
-    // 닫기 버튼(X)
-    const closeBtn = viewerModal.querySelector('#viewer-close');
-    if(closeBtn) closeBtn.addEventListener('click', () => viewerModal.style.display = 'none');
+const viewer = document.getElementById('photo-viewer-modal');
+if(viewer) {
+    viewer.addEventListener('click', (e) => { if(e.target === viewer) viewer.style.display = 'none'; });
+    viewer.querySelector('#viewer-close').addEventListener('click', () => viewer.style.display = 'none');
 }
 
-
-/* ==========================================================================
-   [4] 데이터 불러오기 (상품 목록 Read)
-   ========================================================================== */
+/* [4] 데이터 로드 */
 async function loadProducts() {
     const listContainer = document.getElementById('product-list');
     if(listContainer) listContainer.innerHTML = "<div style='padding:20px; text-align:center'>로딩중...</div>";
-
     try {
         const querySnapshot = await getDocs(collection(db, "products"));
         let products = [];
-        querySnapshot.forEach(doc => {
-            products.push({ id: doc.id, ...doc.data() });
-        });
-
-        allProductsData = products; // 검색을 위해 전체 데이터 저장
-
-        renderMainTree(products); 
-        renderAdminList(products); 
-
-    } catch (error) { console.error("Error loading products:", error); }
+        querySnapshot.forEach(doc => products.push({ id: doc.id, ...doc.data() }));
+        allProductsData = products; 
+        renderMainTree(products); renderAdminList(products); 
+    } catch (error) { console.error("Error:", error); }
 }
 
-
-/* ==========================================================================
-   [5] 좌측 메인 트리 & 검색 기능
-   ========================================================================== */
 function renderMainTree(productsToRender) {
     const listContainer = document.getElementById('product-list');
     if(!listContainer) return;
-
     const tree = {};
     productsToRender.forEach(p => {
-        const cat = p.category || "기타";
-        const comp = p.company || "미지정";
-        if (!tree[cat]) tree[cat] = {};
-        if (!tree[cat][comp]) tree[cat][comp] = [];
+        const cat = p.category || "기타"; const comp = p.company || "미지정";
+        if (!tree[cat]) tree[cat] = {}; if (!tree[cat][comp]) tree[cat][comp] = [];
         tree[cat][comp].push(p);
     });
-
     listContainer.innerHTML = ""; 
-    
-    // 검색 모드인지 확인 (전체 개수보다 적으면 검색 중)
     const isSearchMode = (productsToRender.length < allProductsData.length) && (productsToRender.length > 0);
-
     const fixedOrder = ["전문의약품", "일반의약품", "의약외품"];
     const allCategories = Object.keys(tree);
-    const sortedCategories = [
-        ...fixedOrder.filter(key => allCategories.includes(key)),
-        ...allCategories.filter(key => !fixedOrder.includes(key)).sort()
-    ];
+    const sortedCategories = [ ...fixedOrder.filter(key => allCategories.includes(key)), ...allCategories.filter(key => !fixedOrder.includes(key)).sort() ];
 
-    if(productsToRender.length === 0) {
-        listContainer.innerHTML = "<div style='padding:20px; text-align:center; color:#ccc;'>검색 결과가 없습니다.</div>";
-        return;
-    }
+    if(productsToRender.length === 0) { listContainer.innerHTML = "<div style='padding:20px; text-align:center;'>결과 없음</div>"; return; }
 
     sortedCategories.forEach(categoryName => {
         const catDiv = document.createElement("div");
-        catDiv.className = "tree-node tree-depth-0 tree-toggle"; 
-        catDiv.textContent = categoryName;
-        
+        catDiv.className = "tree-node tree-depth-0 tree-toggle"; catDiv.textContent = categoryName;
         const catChildContainer = document.createElement("div");
-        catChildContainer.style.display = isSearchMode ? "block" : "none"; 
-        if(isSearchMode) catDiv.classList.add('open');
-
-        catDiv.addEventListener("click", () => {
-            catDiv.classList.toggle("open");
-            catChildContainer.style.display = catChildContainer.style.display === "none" ? "block" : "none";
-        });
-        listContainer.appendChild(catDiv);
-        listContainer.appendChild(catChildContainer);
-
+        catChildContainer.style.display = isSearchMode ? "block" : "none"; if(isSearchMode) catDiv.classList.add('open');
+        catDiv.addEventListener("click", () => { catDiv.classList.toggle("open"); catChildContainer.style.display = catChildContainer.style.display === "none" ? "block" : "none"; });
+        listContainer.appendChild(catDiv); listContainer.appendChild(catChildContainer);
         const companies = tree[categoryName];
         Object.keys(companies).sort().forEach(companyName => {
             const compDiv = document.createElement("div");
-            compDiv.className = "tree-node tree-depth-1 tree-toggle";
-            compDiv.textContent = companyName;
-            
+            compDiv.className = "tree-node tree-depth-1 tree-toggle"; compDiv.textContent = companyName;
             const compChildContainer = document.createElement("div");
-            compChildContainer.style.display = isSearchMode ? "block" : "none";
-            if(isSearchMode) compDiv.classList.add('open');
-
-            compDiv.addEventListener("click", (e) => {
-                e.stopPropagation(); 
-                compDiv.classList.toggle("open");
-                compChildContainer.style.display = compChildContainer.style.display === "none" ? "block" : "none";
-            });
-            catChildContainer.appendChild(compDiv);
-            catChildContainer.appendChild(compChildContainer);
-
+            compChildContainer.style.display = isSearchMode ? "block" : "none"; if(isSearchMode) compDiv.classList.add('open');
+            compDiv.addEventListener("click", (e) => { e.stopPropagation(); compDiv.classList.toggle("open"); compChildContainer.style.display = compChildContainer.style.display === "none" ? "block" : "none"; });
+            catChildContainer.appendChild(compDiv); catChildContainer.appendChild(compChildContainer);
             const itemList = companies[companyName];
             itemList.sort((a, b) => a.name.localeCompare(b.name));
-
             itemList.forEach(item => {
                 const itemDiv = document.createElement("div");
-                itemDiv.className = "tree-node tree-depth-2";
-                itemDiv.setAttribute("data-id", item.id);
+                itemDiv.className = "tree-node tree-depth-2"; itemDiv.setAttribute("data-id", item.id);
                 let displayName = item.name;
                 if(item.stock === false) displayName = `<span style="color:red">[품절]</span> ${item.name}`;
                 itemDiv.innerHTML = displayName;
@@ -179,50 +99,34 @@ function renderMainTree(productsToRender) {
     });
 }
 
-// 상단 통합 검색창 리스너
 const mainSearchInput = document.getElementById('main-search-input');
 if(mainSearchInput) {
     mainSearchInput.addEventListener('input', (e) => {
         const keyword = e.target.value.toLowerCase().trim();
-        
-        if(keyword.length > 0) {
-            const orderTab = document.querySelector('.menu-item[data-target="order-mgmt"]');
-            if(orderTab) orderTab.click();
-        } else {
-            renderMainTree(allProductsData);
-            return;
-        }
-
-        if(!allProductsData || allProductsData.length === 0) return;
-
-        const filtered = allProductsData.filter(p => 
-            (p.name && p.name.toLowerCase().includes(keyword)) || 
-            (p.company && p.company.toLowerCase().includes(keyword)) ||
-            (p.category && p.category.toLowerCase().includes(keyword))
-        );
-
+        if(keyword.length > 0) { const orderTab = document.querySelector('.menu-item[data-target="order-mgmt"]'); if(orderTab) orderTab.click(); } 
+        else { renderMainTree(allProductsData); return; }
+        const filtered = allProductsData.filter(p => (p.name && p.name.toLowerCase().includes(keyword)) || (p.company && p.company.toLowerCase().includes(keyword)) || (p.category && p.category.toLowerCase().includes(keyword)));
         renderMainTree(filtered);
     });
 }
 
 function focusProductInTree(product, optionId = null) {
-    // 매칭 로직은 제거됨 (단순 이동)
+    if(currentPhotoReqId) {
+        if(confirm(`선택한 사진 요청을 '${product.name}' 상품과 매칭하시겠습니까?`)) {
+            displayOrderForm(product, optionId, currentPhotoReqId);
+            return;
+        }
+    }
     displayOrderForm(product, optionId);
-    
     setTimeout(() => {
         const targetNode = document.querySelector(`.tree-node[data-id="${product.id}"]`);
         if(targetNode) {
             document.querySelectorAll('.tree-node.active-node').forEach(n => n.classList.remove('active-node'));
             targetNode.classList.add('active-node');
-            
             let parent = targetNode.parentElement;
             while(parent) {
                 if(parent.id === 'product-list') break;
-                if(parent.style.display === 'none') {
-                    parent.style.display = 'block';
-                    const toggleBtn = parent.previousElementSibling;
-                    if(toggleBtn && toggleBtn.classList.contains('tree-toggle')) toggleBtn.classList.add('open');
-                }
+                if(parent.style.display === 'none') { parent.style.display = 'block'; const toggleBtn = parent.previousElementSibling; if(toggleBtn) toggleBtn.classList.add('open'); }
                 parent = parent.parentElement;
             }
             targetNode.scrollIntoView({behavior: "smooth", block: "center"});
@@ -230,339 +134,160 @@ function focusProductInTree(product, optionId = null) {
     }, 100);
 }
 
-
-/* ==========================================================================
-   [6] 중앙 상세화면 (주문 폼)
-   ========================================================================== */
+/* [5] 상세화면 & 장바구니 */
 function displayOrderForm(item, targetOptionId = null, photoReqId = null) {
-    currentProduct = item; 
-    currentQty = 1; 
-
+    currentProduct = item; currentQty = 1; 
     document.getElementById('detail-empty').style.display = 'none';
     document.getElementById('detail-content').style.display = 'flex'; 
     document.getElementById('detail-category').textContent = item.category;
     document.getElementById('detail-name').textContent = item.name;
     document.getElementById('detail-company').textContent = item.company;
 
-    // 사진 매칭 모드일 때 헤더 스타일 (현재는 사용 안 함, 코드 유지)
     const header = document.querySelector('.order-header');
-    header.style.backgroundColor = "transparent";
-    header.style.border = "none";
-    header.removeAttribute('data-photo-req-id');
-
+    if(photoReqId) {
+        header.style.backgroundColor = "#fff8e1"; header.style.border = "1px solid #f39c12"; header.style.padding = "10px";
+        header.setAttribute('data-photo-req-id', photoReqId); 
+        document.getElementById('detail-name').innerHTML = `${item.name} <span style="font-size:0.8rem; color:#e67e22;">(사진 매칭중)</span>`;
+    } else {
+        header.style.backgroundColor = "transparent"; header.style.border = "none"; header.removeAttribute('data-photo-req-id');
+    }
     const optionContainer = document.getElementById('option-list-container');
     optionContainer.innerHTML = ""; 
-
     const options = item.options || []; 
-
-    if(options.length === 0) {
-        optionContainer.innerHTML = "<div style='padding:20px; color:#aaa; text-align:center;'>옵션 없음</div>";
-        document.getElementById('order-total-price').textContent = "0원";
-        return;
-    }
-
+    if(options.length === 0) { optionContainer.innerHTML = "<div style='padding:20px; color:#aaa; text-align:center;'>옵션 없음</div>"; document.getElementById('order-total-price').textContent = "0원"; return; }
     options.forEach((opt, index) => {
-        const card = document.createElement('div');
-        card.className = 'option-card';
+        const card = document.createElement('div'); card.className = 'option-card';
         const lastOrderHtml = opt.lastOrder ? `<div style="font-size:0.8rem; color:#aaa; margin-top:4px;">최근: ${opt.lastOrder}</div>` : "";
-        
-        card.innerHTML = `
-            <div style="flex:1;">
-                <div class="option-name" style="font-size:1rem;">${opt.name}</div>
-                ${lastOrderHtml}
-            </div>
-            <div style="text-align:right;">
-                <div class="option-price" style="font-weight:bold;">${Number(opt.price).toLocaleString()}원</div>
-            </div>
-        `;
-
+        card.innerHTML = `<div style="flex:1;"><div class="option-name">${opt.name}</div>${lastOrderHtml}</div><div style="text-align:right;"><div class="option-price">${Number(opt.price).toLocaleString()}원</div></div>`;
         let isSelected = false;
         if(targetOptionId) { if(opt.id === targetOptionId) isSelected = true; } else { if(index === 0) isSelected = true; }
-
         if(isSelected) { card.classList.add('selected'); currentOptionPrice = Number(opt.price); currentOptionId = opt.id; }
-
         card.addEventListener('click', () => {
             document.querySelectorAll('.option-card').forEach(c => c.classList.remove('selected'));
             card.classList.add('selected');
             currentQty = 1; document.getElementById('order-qty').value = 1;
-            currentOptionPrice = Number(opt.price); currentOptionId = opt.id; 
-            updateTotalPrice();
+            currentOptionPrice = Number(opt.price); currentOptionId = opt.id; updateTotalPrice();
         });
         optionContainer.appendChild(card);
     });
-    
-    if(options.length > 0 && !targetOptionId) {
-        currentOptionPrice = Number(options[0].price);
-        currentOptionId = options[0].id;
-    }
-    
-    document.getElementById('order-qty').value = 1;
-    updateTotalPrice();
+    if(options.length > 0 && !targetOptionId) { currentOptionPrice = Number(options[0].price); currentOptionId = options[0].id; }
+    document.getElementById('order-qty').value = 1; updateTotalPrice();
 }
-
 function updateTotalPrice() {
     const total = currentOptionPrice * currentQty;
-    const totalEl = document.getElementById('order-total-price');
-    if(totalEl) totalEl.textContent = total.toLocaleString() + "원";
+    document.getElementById('order-total-price').textContent = total.toLocaleString() + "원";
 }
-
-// 수량 조절 버튼 및 입력
 document.getElementById('qty-plus').addEventListener('click', () => { currentQty++; document.getElementById('order-qty').value = currentQty; updateTotalPrice(); });
 document.getElementById('qty-minus').addEventListener('click', () => { if(currentQty > 1) currentQty--; document.getElementById('order-qty').value = currentQty; updateTotalPrice(); });
-document.getElementById('order-qty').addEventListener('input', function() {
-    let val = parseInt(this.value);
-    if(isNaN(val) || val < 1) val = 1; 
-    currentQty = val; 
-    updateTotalPrice();
-});
+document.getElementById('order-qty').addEventListener('input', function() { let val = parseInt(this.value); if(isNaN(val) || val < 1) val = 1; currentQty = val; updateTotalPrice(); });
 
-
-/* ==========================================================================
-   [7] 장바구니 로직
-   ========================================================================== */
 const btnAddCart = document.getElementById('btn-add-cart');
 if(btnAddCart) btnAddCart.addEventListener('click', async () => {
     if(!currentProduct || !currentOptionId) return;
-    
     const selectedOptionEl = document.querySelector('.option-card.selected');
     const optionName = selectedOptionEl ? selectedOptionEl.querySelector('.option-name').textContent : "기본옵션";
-    
-    const newItem = { 
-        cartId: Date.now(), 
-        optionId: currentOptionId, 
-        product: currentProduct, 
-        optionName: optionName, 
-        qty: currentQty, 
-        unitPrice: currentOptionPrice, 
-        totalPrice: currentOptionPrice * currentQty
-    };
-
-    // 장바구니 중복 확인 (같은 옵션이면 합침)
-    const existingIndex = cartItems.findIndex(i => i.optionId === currentOptionId);
-    
-    if(existingIndex !== -1) {
-        cartItems[existingIndex].qty += currentQty;
-        cartItems[existingIndex].totalPrice = cartItems[existingIndex].unitPrice * cartItems[existingIndex].qty;
-    } else {
-        cartItems.push(newItem);
-    }
-    
+    const header = document.querySelector('.order-header');
+    const photoReqId = header.getAttribute('data-photo-req-id'); 
+    const newItem = { cartId: Date.now(), optionId: currentOptionId, product: currentProduct, optionName: optionName, qty: currentQty, unitPrice: currentOptionPrice, totalPrice: currentOptionPrice * currentQty, photoReqId: photoReqId };
+    const existingIndex = cartItems.findIndex(i => i.optionId === currentOptionId && i.photoReqId === photoReqId);
+    if(existingIndex !== -1) { cartItems[existingIndex].qty += currentQty; cartItems[existingIndex].totalPrice = cartItems[existingIndex].unitPrice * cartItems[existingIndex].qty; } else { cartItems.push(newItem); }
     renderCart(currentOptionId);
+    if(photoReqId) {
+        try {
+            await updateDoc(doc(db, "photo_requests", photoReqId), { status: "processed", matchedProduct: currentProduct.name, completedAt: new Date() });
+            currentPhotoReqId = null; header.style.backgroundColor = "transparent"; header.style.border = "none"; header.removeAttribute('data-photo-req-id');
+            document.getElementById('detail-name').textContent = currentProduct.name;
+            alert("사진 요청 처리 완료");
+        } catch(e) { console.error("사진 업데이트 실패:", e); }
+    }
 });
-
 function renderCart(highlightId = null) {
     const cartList = document.getElementById('cart-list');
-    const totalEl = document.getElementById('cart-total-price');
-    const countEl = document.getElementById('cart-count');
     cartList.innerHTML = ""; let totalAmount = 0;
-
     if(cartItems.length === 0) cartList.innerHTML = "<div style='padding:40px 20px; text-align:center; color:#ccc;'>비어있음</div>";
-
     cartItems.forEach((item, index) => {
         totalAmount += item.totalPrice;
-        const div = document.createElement('div');
-        div.className = 'cart-item-card';
+        const div = document.createElement('div'); div.className = 'cart-item-card';
         if(highlightId && item.optionId === highlightId) div.classList.add('highlight');
-        
-        div.addEventListener('dblclick', () => {
-            document.querySelector('.menu-item[data-target="order-mgmt"]').click();
-            focusProductInTree(item.product, item.optionId);
-        });
-        div.title = "더블클릭: 해당 상품으로 이동";
-
-        // 장바구니 아이템 표시 (제약사 포함)
-        div.innerHTML = `
-            <div class="cart-item-left">
-                <div class="cart-item-title" style="display:flex; align-items:center; gap:5px;">
-                    ${item.product.name} 
-                    <span style="font-size:0.85rem; color:#888; font-weight:normal;">(${item.product.company})</span>
-                </div>
-                <div class="cart-item-desc">${item.optionName}</div>
-            </div>
-            <div class="cart-item-right">
-                <div class="cart-item-price">${item.totalPrice.toLocaleString()}원</div>
-                <div class="cart-item-qty">${item.qty}개</div>
-            </div>
-            <button class="cart-delete-btn" onclick="deleteCartItem(${index})" title="삭제">&times;</button>
-        `;
+        div.addEventListener('dblclick', () => { document.querySelector('.menu-item[data-target="order-mgmt"]').click(); focusProductInTree(item.product, item.optionId); });
+        const photoIcon = item.photoReqId ? '<span style="font-size:0.8rem;">📷</span>' : '';
+        div.innerHTML = `<div class="cart-item-left"><div class="cart-item-title">${item.product.name} ${photoIcon} <span style="font-size:0.85rem; color:#888;">(${item.product.company})</span></div><div class="cart-item-desc">${item.optionName}</div></div><div class="cart-item-right"><div class="cart-item-price">${item.totalPrice.toLocaleString()}원</div><div class="cart-item-qty">${item.qty}개</div></div><button class="cart-delete-btn" onclick="deleteCartItem(${index})" title="삭제">&times;</button>`;
         cartList.appendChild(div);
     });
-    if(totalEl) totalEl.textContent = totalAmount.toLocaleString() + "원";
-    if(countEl) countEl.textContent = cartItems.length;
+    document.getElementById('cart-total-price').textContent = totalAmount.toLocaleString() + "원";
+    document.getElementById('cart-count').textContent = cartItems.length;
 }
-
-window.deleteCartItem = function(index) {
-    const card = document.querySelectorAll('.cart-item-card')[index];
-    deletedItemBackup = { item: cartItems[index], optionId: cartItems[index].optionId };
-    if(card) card.classList.add('deleting');
-    setTimeout(() => { cartItems.splice(index, 1); renderCart(); showUndoNotification(); }, 200);
-};
-
-function showUndoNotification() {
-    const undoArea = document.getElementById('undo-area');
-    undoArea.style.display = 'block';
-    if(undoTimeout) clearTimeout(undoTimeout);
-    undoTimeout = setTimeout(() => { undoArea.style.display = 'none'; deletedItemBackup = null; }, 5000);
-}
+window.deleteCartItem = function(index) { const card = document.querySelectorAll('.cart-item-card')[index]; deletedItemBackup = { item: cartItems[index], optionId: cartItems[index].optionId }; if(card) card.classList.add('deleting'); setTimeout(() => { cartItems.splice(index, 1); renderCart(); showUndoNotification(); }, 200); };
+function showUndoNotification() { const undoArea = document.getElementById('undo-area'); undoArea.style.display = 'block'; if(undoTimeout) clearTimeout(undoTimeout); undoTimeout = setTimeout(() => { undoArea.style.display = 'none'; deletedItemBackup = null; }, 5000); }
 if(document.getElementById('btn-undo')) document.getElementById('btn-undo').addEventListener('click', () => { if(deletedItemBackup) { cartItems.push(deletedItemBackup.item); renderCart(deletedItemBackup.optionId); document.getElementById('undo-area').style.display = 'none'; } });
-
-// 주문 완료 (DB 저장)
 if(document.getElementById('btn-order-complete')) {
     document.getElementById('btn-order-complete').addEventListener('click', async () => {
         if(cartItems.length === 0) return;
         if(!confirm(`총 ${cartItems.length}건 주문완료?`)) return;
-        
         const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${day}`;
-
-        try {
-            await addDoc(collection(db, "order_history"), { date: dateStr, timestamp: now, items: cartItems });
-            cartItems = []; renderCart();
-        } catch(e) { console.error(e); alert("주문 저장 실패"); }
+        const dateStr = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+        try { await addDoc(collection(db, "order_history"), { date: dateStr, timestamp: now, items: cartItems }); cartItems = []; renderCart(); } catch(e) { console.error(e); alert("저장 실패"); }
     });
 }
 
-
-/* ==========================================================================
-   [8] 하단 로그 패널 (실시간)
-   ========================================================================== */
-function subscribeToRecentLogs() {
-    const logContainer = document.getElementById('completed-order-list');
-    
-    const q = query(collection(db, "order_history"), orderBy("timestamp", "desc"), limit(50));
-
-    onSnapshot(q, (snapshot) => {
-        logContainer.innerHTML = "";
-        if(snapshot.empty) { logContainer.innerHTML = '<div style="color:#aaa; padding:10px;">최근 기록이 없습니다.</div>'; return; }
-
-        snapshot.forEach(docSnap => {
-            const data = docSnap.data();
-            const dateObj = data.timestamp.toDate();
-            const timeStr = `${dateObj.getMonth()+1}/${dateObj.getDate()} ${dateObj.getHours()}:${String(dateObj.getMinutes()).padStart(2,'0')}`;
-            
-            data.items.forEach(item => {
-                const div = document.createElement('div');
-                div.className = 'log-item';
-                div.innerHTML = `
-                    <div style="display:flex; align-items:center;"><span class="log-time">[${timeStr}]</span><strong>${item.product.name}</strong><span style="color:#888; font-size:0.85rem; margin-left:4px;">(${item.product.company})</span><span style="color:#666; margin-left:5px;">(${item.qty})</span></div>
-                    <div><span class="log-status">완료</span><button class="btn-log-restore">취소</button></div>
-                `;
-                div.querySelector('.btn-log-restore').addEventListener('click', async () => {
-                    if(confirm("취소하시겠습니까?")) {
-                        cartItems.push(item); renderCart(item.optionId);
-                        await deleteDoc(doc(db, "order_history", docSnap.id)); 
-                    }
-                });
-                logContainer.appendChild(div);
-            });
-        });
-    });
-}
-
-
-/* ==========================================================================
-   [9] 사진 업로드 & 대기열 (주문장)
-   ========================================================================== */
+/* [6] 사진 업로드 (모달) */
 const btnCamera = document.getElementById('btn-camera-floating');
+const cameraInput = document.getElementById('file-input-camera'); 
+const inputGallery = document.getElementById('file-input-gallery');
 const loadingSpinner = document.getElementById('loading-spinner');
-
-// 모달 및 입력창 요소들 (ID 수정됨)
 const sourceModal = document.getElementById('source-select-modal');
-const inputCamera = document.getElementById('file-input-camera');   // 카메라용
-const inputGallery = document.getElementById('file-input-gallery'); // 갤러리용
 
-// 1. 플로팅 버튼 클릭 -> 선택 모달 열기
-function openSourceModal() {
-    if(sourceModal) sourceModal.style.display = 'flex';
-}
+function openSourceModal() { if(sourceModal) sourceModal.style.display = 'flex'; }
 if(btnCamera) btnCamera.addEventListener('click', openSourceModal);
+if(document.getElementById('btn-select-camera')) document.getElementById('btn-select-camera').onclick = () => { sourceModal.style.display = 'none'; if(cameraInput) cameraInput.click(); };
+if(document.getElementById('btn-select-gallery')) document.getElementById('btn-select-gallery').onclick = () => { sourceModal.style.display = 'none'; if(inputGallery) inputGallery.click(); };
+if(document.getElementById('btn-select-cancel')) document.getElementById('btn-select-cancel').onclick = () => { sourceModal.style.display = 'none'; };
 
-// 2. 모달 내부 버튼 동작 연결
-if(document.getElementById('btn-select-camera')) {
-    document.getElementById('btn-select-camera').onclick = () => {
-        sourceModal.style.display = 'none';
-        if(inputCamera) inputCamera.click(); // 카메라 input 실행
-    };
-}
-if(document.getElementById('btn-select-gallery')) {
-    document.getElementById('btn-select-gallery').onclick = () => {
-        sourceModal.style.display = 'none';
-        if(inputGallery) inputGallery.click(); // 갤러리 input 실행
-    };
-}
-if(document.getElementById('btn-select-cancel')) {
-    document.getElementById('btn-select-cancel').onclick = () => {
-        sourceModal.style.display = 'none';
-    };
-}
-
-// 3. 공통 업로드 처리 함수 (어느 input이든 파일이 들어오면 실행)
 async function handleFileUpload(e) {
-    const file = e.target.files[0];
-    if(!file) return;
-
-    // 모달 준비
-    const uploadModal = document.getElementById('upload-confirm-modal');
-    const previewImg = document.getElementById('upload-preview-img');
-    const uploadNote = document.getElementById('upload-note');
-    
-    // 전역 변수에 파일 임시 저장
+    const file = e.target.files[0]; if(!file) return;
     window.tempUploadFile = file; 
-    
-    // 미리보기 표시
     const reader = new FileReader();
-    reader.onload = (event) => { 
-        if(previewImg) previewImg.src = event.target.result; 
-    };
+    reader.onload = (event) => { const img = document.getElementById('upload-preview-img'); if(img) img.src = event.target.result; };
     reader.readAsDataURL(file);
-    
-    if(uploadNote) uploadNote.value = ""; // 메모 초기화
-    if(uploadModal) uploadModal.style.display = 'flex';
-    
-    // 입력값 초기화 (같은 파일 다시 선택 가능하게)
+    document.getElementById('upload-note').value = "";
+    document.getElementById('upload-confirm-modal').style.display = 'flex';
     e.target.value = '';
 }
-
-// 4. 두 입력창에 이벤트 리스너 연결
-if(inputCamera) inputCamera.addEventListener('change', handleFileUpload);
+if(cameraInput) cameraInput.addEventListener('change', handleFileUpload);
 if(inputGallery) inputGallery.addEventListener('change', handleFileUpload);
+if(document.getElementById('btn-upload-cancel')) document.getElementById('btn-upload-cancel').addEventListener('click', () => { document.getElementById('upload-confirm-modal').style.display = 'none'; window.tempUploadFile = null; });
 
-// 5. 업로드 취소
-if(document.getElementById('btn-upload-cancel')) {
-    document.getElementById('btn-upload-cancel').addEventListener('click', () => {
-        document.getElementById('upload-confirm-modal').style.display = 'none';
-        window.tempUploadFile = null;
-    });
-}
-
-// 6. 업로드 확정 (전송하기)
 if(document.getElementById('btn-upload-confirm')) {
-    // 기존 리스너 제거 후 재생성 (중복 방지)
-    const oldBtn = document.getElementById('btn-upload-confirm');
-    const newBtn = oldBtn.cloneNode(true);
-    oldBtn.parentNode.replaceChild(newBtn, oldBtn);
+    const btn = document.getElementById('btn-upload-confirm');
+    const newBtn = btn.cloneNode(true); 
+    btn.parentNode.replaceChild(newBtn, btn);
 
     newBtn.addEventListener('click', async () => {
-        const file = window.tempUploadFile;
+        const file = window.tempUploadFile; 
         if(!file) return;
         
         const note = document.getElementById('upload-note').value;
         document.getElementById('upload-confirm-modal').style.display = 'none';
         
-        // 압축 옵션 (속도 최적화)
-        const options = { maxSizeMB: 1, maxWidthOrHeight: 1024, useWebWorker: true };
+        // ★★★ 여기가 수정된 핵심 설정입니다 ★★★
+        const options = { 
+            maxSizeMB: 0.3,        // 1MB -> 0.3MB (300KB)로 줄임
+            maxWidthOrHeight: 800, // 1024px -> 800px로 줄임 (속도 대폭 향상)
+            useWebWorker: true 
+        };
 
         try {
             if(loadingSpinner) loadingSpinner.style.display = 'flex';
 
+            // 1. 브라우저단에서 압축 실행
             const compressedFile = await imageCompression(file, options);
+            
+            // 2. 압축된 파일 업로드
             const storageRef = ref(storage, `photo_requests/${Date.now()}_${file.name}`);
             await uploadBytes(storageRef, compressedFile);
             const downloadURL = await getDownloadURL(storageRef);
 
+            // 3. DB 저장
             await addDoc(collection(db, "photo_requests"), {
                 imageUrl: downloadURL,
                 timestamp: new Date(),
@@ -571,11 +296,12 @@ if(document.getElementById('btn-upload-confirm')) {
             });
 
             if(loadingSpinner) loadingSpinner.style.display = 'none';
-            alert("전송 완료");
+            alert("전송 완료"); // 훨씬 빨리 뜰 겁니다!
+            
         } catch(error) {
             console.error(error);
             if(loadingSpinner) loadingSpinner.style.display = 'none';
-            alert("업로드 실패");
+            alert("오류 발생: " + error.message);
         }
     });
 }
@@ -597,84 +323,165 @@ function subscribeToPhotoRequests() {
         if(snapshot.empty) { queueContainer.innerHTML = "<div style='grid-column:1/-1; text-align:center; color:#ccc; padding:50px;'>요청 내역이 없습니다.</div>"; return; }
         
         let photoList = [];
-        snapshot.forEach(docSnap => {
-            photoList.push({ id: docSnap.id, ...docSnap.data(), docSnap: docSnap });
-        });
-
-        // 정렬: 미처리(pending) 먼저
+        snapshot.forEach(docSnap => photoList.push({ id: docSnap.id, ...docSnap.data(), docSnap: docSnap }));
+        
+        // 정렬: Pending(1) -> Hold(2) -> Processed(3)
         photoList.sort((a, b) => {
-            if (a.status === b.status) {
-                return b.timestamp.seconds - a.timestamp.seconds;
-            }
-            return a.status === 'pending' ? -1 : 1; 
+            const statusOrder = { 'pending': 1, 'hold': 2, 'processed': 3 };
+            if (statusOrder[a.status] !== statusOrder[b.status]) return statusOrder[a.status] - statusOrder[b.status];
+            return b.timestamp.seconds - a.timestamp.seconds; 
         });
 
         photoList.forEach(data => {
             const div = document.createElement('div');
-            const isDone = data.status === 'processed';
-            div.className = `order-book-item ${isDone ? 'done' : 'pending'}`;
+            let statusClass = 'pending';
+            if(data.status === 'hold') statusClass = 'hold';
+            if(data.status === 'processed') statusClass = 'done';
+            div.className = `order-book-item ${statusClass}`;
             
             const reqTime = formatShortTime(data.timestamp);
             const doneTime = data.completedAt ? formatShortTime(data.completedAt) : "";
             const noteHtml = data.note ? `<div class="photo-note-label">${data.note}</div>` : "";
 
-            div.innerHTML = `
-                <img src="${data.imageUrl}">
-                <div class="photo-time-label time-top">요청: ${reqTime}</div>
-                ${isDone ? `<div class="photo-time-label time-bottom">완료: ${doneTime}</div>` : ''}
-                ${noteHtml}
-            `;
+            div.innerHTML = `<img src="${data.imageUrl}"><div class="photo-time-label time-top">요청: ${reqTime}</div>${statusClass === 'done' ? `<div class="photo-time-label time-bottom">완료: ${doneTime}</div>` : ''}${noteHtml}`;
             div.addEventListener('click', () => showPhotoViewer(data.id, data.imageUrl, data.status, data.note));
             queueContainer.appendChild(div);
         });
     });
 }
 
-// 사진 뷰어 및 상태 토글 (주문완료/취소)
 function showPhotoViewer(docId, imageUrl, currentStatus, note) {
     let viewer = document.getElementById('photo-viewer-modal');
-    const img = viewer.querySelector('#viewer-img');
-    const btn = viewer.querySelector('#btn-toggle-status');
-    const noteEl = viewer.querySelector('#viewer-note');
-
-    img.src = imageUrl;
-    if(note) { 
-        noteEl.textContent = `📝 메모: ${note}`; 
-        noteEl.style.display = 'block'; 
-    } else { 
-        noteEl.style.display = 'none'; 
+    // 뷰어 초기화
+    if(!viewer) {
+        viewer = document.createElement('div'); viewer.id = 'photo-viewer-modal';
+        viewer.style.cssText = "display:flex; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:99999; align-items:center; justify-content:center; flex-direction:column;";
+        document.body.appendChild(viewer);
     }
+    viewer.innerHTML = `
+        <div style="position:relative; max-width:90%; max-height:70%;">
+            <img id="viewer-img" src="${imageUrl}" style="max-width:100%; max-height:70vh; border-radius:8px;">
+            <button id="viewer-close" style="position:absolute; top:-40px; right:0; background:none; border:none; color:white; font-size:2.5rem; cursor:pointer;">&times;</button>
+        </div>
+        <div id="viewer-note" style="background:rgba(255,255,255,0.9); padding:10px 20px; border-radius:20px; margin-top:15px; font-weight:bold; color:#333; max-width:90%; text-align:center; display:${note ? 'block' : 'none'}">📝 메모: ${note || ''}</div>
+        <div id="viewer-buttons" style="margin-top:15px; display:flex; gap:10px;"></div>
+    `;
 
-    if(currentStatus === 'pending') {
-        btn.textContent = "주문완료"; 
-        btn.style.backgroundColor = "#27ae60"; 
-        btn.style.color = "white";
-    } else {
-        btn.textContent = "주문취소"; 
-        btn.style.backgroundColor = "#e74c3c"; 
-        btn.style.color = "white";
-    }
+    const btnContainer = viewer.querySelector('#viewer-buttons');
 
-    // 버튼 클릭 (기존 리스너 제거 후 새 리스너)
-    const newBtn = btn.cloneNode(true);
-    btn.parentNode.replaceChild(newBtn, btn);
+    // 버튼 생성 헬퍼
+    const createBtn = (text, color, action) => {
+        const btn = document.createElement('button');
+        btn.textContent = text;
+        btn.style.cssText = `padding:12px 20px; font-size:1.1rem; border-radius:30px; border:none; cursor:pointer; font-weight:bold; color:white; background-color:${color}; box-shadow:0 4px 10px rgba(0,0,0,0.3);`;
+        btn.onclick = action;
+        return btn;
+    };
 
-    newBtn.onclick = async () => {
-        const newStatus = currentStatus === 'pending' ? 'processed' : 'pending';
-        const updateData = { status: newStatus };
-        if(newStatus === 'processed') { updateData.completedAt = new Date(); }
-        else { updateData.completedAt = null; }
+    const updateStatus = async (newStatus, requireReason = false) => {
+        let noteUpdate = {};
+        if(requireReason) {
+            const reason = prompt("보류 사유를 입력하세요");
+            if(reason === null) return;
+            noteUpdate.note = reason; 
+        }
+        const updateData = { status: newStatus, ...noteUpdate };
+        if(newStatus === 'processed') updateData.completedAt = new Date();
+        else if(newStatus === 'pending') updateData.completedAt = null;
 
         try { await updateDoc(doc(db, "photo_requests", docId), updateData); viewer.style.display = 'none'; } 
-        catch(e) { alert("상태 변경 실패"); }
+        catch(e) { alert("오류 발생"); }
     };
+
+    if(currentStatus === 'pending') {
+        btnContainer.appendChild(createBtn('주문완료', '#27ae60', () => updateStatus('processed')));
+        btnContainer.appendChild(createBtn('주문보류', '#f39c12', () => updateStatus('hold', true)));
+    } else if(currentStatus === 'hold') {
+        btnContainer.appendChild(createBtn('주문완료', '#27ae60', () => updateStatus('processed')));
+        btnContainer.appendChild(createBtn('대기로 복구', '#34495e', () => updateStatus('pending')));
+    } else {
+        btnContainer.appendChild(createBtn('주문취소 (복구)', '#e74c3c', () => updateStatus('pending')));
+    }
+
+    viewer.querySelector('#viewer-close').onclick = () => viewer.style.display = 'none';
+    viewer.onclick = (e) => { if(e.target === viewer) viewer.style.display = 'none'; };
     viewer.style.display = 'flex';
 }
 
+/* [7] 달력 및 로그 */
+function renderCalendar() {
+    const grid = document.getElementById('calendar-grid'); const monthEl = document.getElementById('cal-current-month');
+    if(!grid) return;
+    grid.innerHTML = "";
+    const year = calDate.getFullYear(); const month = calDate.getMonth(); 
+    monthEl.textContent = `${year}.${String(month + 1).padStart(2, '0')}`;
+    const firstDay = new Date(year, month, 1).getDay(); const lastDate = new Date(year, month + 1, 0).getDate(); 
+    const today = new Date(); const isThisMonth = (today.getFullYear() === year && today.getMonth() === month);
+    for(let i=0; i<firstDay; i++) { const div = document.createElement('div'); div.className = 'calendar-date empty'; grid.appendChild(div); }
+    for(let i=1; i<=lastDate; i++) {
+        const div = document.createElement('div'); div.className = 'calendar-date'; div.textContent = i;
+        const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
+        div.setAttribute('data-date', dateStr);
+        if(isThisMonth && today.getDate() === i) div.classList.add('today');
+        if(selectedDateStr === dateStr) div.classList.add('selected');
+        div.addEventListener('click', () => { document.querySelectorAll('.calendar-date').forEach(d => d.classList.remove('selected')); div.classList.add('selected'); selectedDateStr = dateStr; loadHistoryByDate(dateStr); });
+        grid.appendChild(div);
+    }
+    const startStr = `${year}-${String(month+1).padStart(2,'0')}-01`;
+    const endStr = `${year}-${String(month+1).padStart(2,'0')}-31`;
+    const q = query(collection(db, "order_history"), where("date", ">=", startStr), where("date", "<=", endStr));
+    getDocs(q).then(snap => { const dates = new Set(); snap.forEach(d => dates.add(d.data().date)); document.querySelectorAll('.calendar-date').forEach(el => { if(dates.has(el.getAttribute('data-date'))) el.classList.add('has-data'); }); });
+}
+const btnCalPrev = document.getElementById('cal-prev'); const btnCalNext = document.getElementById('cal-next');
+if(btnCalPrev) btnCalPrev.onclick = () => { calDate.setMonth(calDate.getMonth() - 1); renderCalendar(); };
+if(btnCalNext) btnCalNext.onclick = () => { calDate.setMonth(calDate.getMonth() + 1); renderCalendar(); };
 
-/* ==========================================================================
-   [10] 관리자(Admin) & 달력
-   ========================================================================== */
+async function loadHistoryByDate(dateStr) {
+    const listContainer = document.getElementById('history-list');
+    const titleEl = document.getElementById('history-title');
+    titleEl.textContent = `${dateStr} 주문 상세 내역`;
+    listContainer.innerHTML = "<div style='text-align:center; margin-top:50px;'>로딩중...</div>";
+    try {
+        const q = query(collection(db, "order_history"), where("date", "==", dateStr));
+        const querySnapshot = await getDocs(q);
+        listContainer.innerHTML = "";
+        if(querySnapshot.empty) { listContainer.innerHTML = "<div style='text-align:center; color:#ccc; margin-top:50px;'>기록 없음</div>"; return; }
+        let historyData = [];
+        querySnapshot.forEach(doc => historyData.push({ id: doc.id, ...doc.data() }));
+        historyData.sort((a, b) => b.timestamp.seconds - a.timestamp.seconds);
+        historyData.forEach(data => {
+            const items = data.items; const card = document.createElement('div'); card.className = 'history-card';
+            const dateObj = data.timestamp.toDate(); 
+            const timeStr = `${dateObj.getHours()}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
+            let itemsHtml = "";
+            items.forEach(item => { itemsHtml += `<div class="history-item-row"><span>${item.product.name} <span style="color:#888; font-size:0.85rem;">(${item.product.company})</span> <span style="color:#666;">(${item.optionName})</span></span><strong>${item.qty}개</strong></div>`; });
+            card.innerHTML = `<div class="history-time">⏰ ${timeStr} (총 ${items.length}품목)</div><div style="border-top:1px solid #eee; margin-top:5px; padding-top:5px;">${itemsHtml}</div>`;
+            listContainer.appendChild(card);
+        });
+    } catch (e) { console.error(e); }
+}
+
+function subscribeToRecentLogs() {
+    const logContainer = document.getElementById('completed-order-list');
+    const q = query(collection(db, "order_history"), orderBy("timestamp", "desc"), limit(50));
+    onSnapshot(q, (snapshot) => {
+        logContainer.innerHTML = "";
+        if(snapshot.empty) { logContainer.innerHTML = '<div style="color:#aaa; padding:10px;">기록 없음</div>'; return; }
+        snapshot.forEach(docSnap => {
+            const data = docSnap.data();
+            const dateObj = data.timestamp.toDate();
+            const timeStr = `${dateObj.getMonth()+1}/${dateObj.getDate()} ${dateObj.getHours()}:${String(dateObj.getMinutes()).padStart(2,'0')}`;
+            data.items.forEach(item => {
+                const div = document.createElement('div'); div.className = 'log-item';
+                div.innerHTML = `<div style="display:flex; align-items:center;"><span class="log-time">[${timeStr}]</span><strong>${item.product.name}</strong><span style="color:#888; font-size:0.85rem; margin-left:4px;">(${item.product.company})</span><span style="color:#666; margin-left:5px;">(${item.qty})</span></div><div><span class="log-status">완료</span><button class="btn-log-restore">취소</button></div>`;
+                div.querySelector('.btn-log-restore').addEventListener('click', async () => { if(confirm("취소하시겠습니까?")) { cartItems.push(item); renderCart(item.optionId); await deleteDoc(doc(db, "order_history", docSnap.id)); } });
+                logContainer.appendChild(div);
+            });
+        });
+    });
+}
+
+/* [8] 관리자/거래처 */
 function renderAdminList(productsToRender) {
     const adminListContainer = document.getElementById('admin-product-list');
     const countEl = document.getElementById('admin-list-count');
@@ -703,8 +510,9 @@ if(adminSearchInput) {
         renderAdminList(filtered);
     });
 }
-function startEditMode(item) {
+async function startEditMode(item) {
     editingProductId = item.id; 
+    await loadSupplierDropdown();
     document.getElementById('reg-category').value = item.category;
     document.getElementById('reg-company').value = item.company;
     document.getElementById('reg-name').value = item.name;
@@ -713,7 +521,18 @@ function startEditMode(item) {
     if(item.options && item.options.length > 0) item.options.forEach(opt => addOptionRow(opt.name, opt.price)); else addOptionRow(); 
     const btnReg = document.getElementById('btn-register');
     btnReg.textContent = "상품 수정완료"; btnReg.style.backgroundColor = "#f39c12"; 
+    const btnCancel = document.getElementById('btn-cancel-edit');
+    if(btnCancel) btnCancel.style.display = "inline-block";
     document.getElementById('product-form-body').scrollTop = 0;
+}
+const btnCancelEdit = document.getElementById('btn-cancel-edit');
+if(btnCancelEdit) {
+    btnCancelEdit.addEventListener('click', () => {
+        editingProductId = null; document.getElementById('reg-name').value = ""; document.getElementById('reg-company').value = "";
+        document.getElementById('reg-options-container').innerHTML = ""; addOptionRow();
+        const btnReg = document.getElementById('btn-register'); btnReg.textContent = "상품 등록하기"; btnReg.style.backgroundColor = "#27ae60";
+        btnCancelEdit.style.display = "none";
+    });
 }
 const btnRegister = document.getElementById('btn-register');
 if(btnRegister) {
@@ -733,7 +552,7 @@ if(btnRegister) {
         if(options.length === 0) { alert("옵션 입력 필요"); return; }
         const productData = { category: cat, company: comp, name: name, stock: true, options: options, code: Date.now().toString() };
         try {
-            if(editingProductId) { await updateDoc(doc(db, "products", editingProductId), productData); alert("수정됨"); editingProductId = null; btnRegister.textContent = "상품 등록하기"; btnRegister.style.backgroundColor = "#27ae60"; }
+            if(editingProductId) { await updateDoc(doc(db, "products", editingProductId), productData); alert("수정됨"); editingProductId = null; btnRegister.textContent = "상품 등록하기"; btnRegister.style.backgroundColor = "#27ae60"; if(btnCancelEdit) btnCancelEdit.style.display = "none"; }
             else { await addDoc(collection(db, "products"), productData); alert("등록됨"); }
             document.getElementById('reg-name').value = ""; document.getElementById('reg-options-container').innerHTML = ""; addOptionRow(); loadProducts(); 
         } catch(e) { console.error(e); }
@@ -744,8 +563,10 @@ async function loadSupplierDropdown() {
     if(!select) return;
     try {
         const supSnapshot = await getDocs(collection(db, "suppliers"));
+        let suppliers = []; supSnapshot.forEach(doc => suppliers.push(doc.data()));
+        suppliers.sort((a, b) => a.name.localeCompare(b.name));
         let optionsHtml = '<option value="">거래처를 선택하세요</option>';
-        supSnapshot.forEach(doc => { const data = doc.data(); optionsHtml += `<option value="${data.name}">${data.name}</option>`; });
+        suppliers.forEach(data => { optionsHtml += `<option value="${data.name}">${data.name}</option>`; });
         select.innerHTML = optionsHtml;
     } catch(e) { console.error(e); }
 }
@@ -758,7 +579,6 @@ window.addOptionRow = function(name="", price="") {
     container.appendChild(div);
 };
 if(document.getElementById('btn-add-option-row')) document.getElementById('btn-add-option-row').addEventListener('click', () => addOptionRow());
-
 document.getElementById('btn-quick-sup-open').addEventListener('click', () => document.getElementById('quick-sup-modal').style.display = 'flex');
 document.getElementById('btn-quick-sup-cancel').addEventListener('click', () => document.getElementById('quick-sup-modal').style.display = 'none');
 document.getElementById('btn-quick-sup-save').addEventListener('click', async () => {
@@ -823,63 +643,6 @@ if(btnDeleteSupplier) btnDeleteSupplier.addEventListener('click', async () => { 
 document.getElementById('btn-toggle-pw').addEventListener('click', () => { const pwInput = document.getElementById('sup-site-pw'); if(pwInput.type === "password") { if(prompt("PIN (0000)") === "0000") pwInput.type = "text"; } else pwInput.type = "password"; });
 document.getElementById('btn-manager-handover').addEventListener('click', () => { const cur = document.getElementById('sup-cur-manager').value; if(cur && confirm("이관?")) { document.getElementById('sup-prev-manager').value = cur; document.getElementById('sup-cur-manager').value = ""; } });
 
-// [12] 달력 및 기록 조회
-function renderCalendar() {
-    const grid = document.getElementById('calendar-grid');
-    const monthEl = document.getElementById('cal-current-month');
-    if(!grid) return;
-    grid.innerHTML = "";
-    const year = calDate.getFullYear();
-    const month = calDate.getMonth(); 
-    monthEl.textContent = `${year}.${String(month + 1).padStart(2, '0')}`;
-    const firstDay = new Date(year, month, 1).getDay(); 
-    const lastDate = new Date(year, month + 1, 0).getDate(); 
-    const today = new Date();
-    const isThisMonth = (today.getFullYear() === year && today.getMonth() === month);
-    for(let i=0; i<firstDay; i++) { const div = document.createElement('div'); div.className = 'calendar-date empty'; grid.appendChild(div); }
-    for(let i=1; i<=lastDate; i++) {
-        const div = document.createElement('div'); div.className = 'calendar-date'; div.textContent = i;
-        const dateStr = `${year}-${String(month+1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-        div.setAttribute('data-date', dateStr);
-        if(isThisMonth && today.getDate() === i) div.classList.add('today');
-        if(selectedDateStr === dateStr) div.classList.add('selected');
-        div.addEventListener('click', () => { document.querySelectorAll('.calendar-date').forEach(d => d.classList.remove('selected')); div.classList.add('selected'); selectedDateStr = dateStr; loadHistoryByDate(dateStr); });
-        grid.appendChild(div);
-    }
-    const startStr = `${year}-${String(month+1).padStart(2,'0')}-01`;
-    const endStr = `${year}-${String(month+1).padStart(2,'0')}-31`;
-    const q = query(collection(db, "order_history"), where("date", ">=", startStr), where("date", "<=", endStr));
-    getDocs(q).then(snap => { const dates = new Set(); snap.forEach(d => dates.add(d.data().date)); document.querySelectorAll('.calendar-date').forEach(el => { if(dates.has(el.getAttribute('data-date'))) el.classList.add('has-data'); }); });
-}
-const btnCalPrev = document.getElementById('cal-prev'); const btnCalNext = document.getElementById('cal-next');
-if(btnCalPrev) btnCalPrev.onclick = () => { calDate.setMonth(calDate.getMonth() - 1); renderCalendar(); };
-if(btnCalNext) btnCalNext.onclick = () => { calDate.setMonth(calDate.getMonth() + 1); renderCalendar(); };
-
-async function loadHistoryByDate(dateStr) {
-    const listContainer = document.getElementById('history-list');
-    const titleEl = document.getElementById('history-title');
-    titleEl.textContent = `${dateStr} 주문 상세 내역`;
-    listContainer.innerHTML = "<div style='text-align:center; margin-top:50px;'>로딩중...</div>";
-    try {
-        const q = query(collection(db, "order_history"), where("date", "==", dateStr));
-        const querySnapshot = await getDocs(q);
-        listContainer.innerHTML = "";
-        if(querySnapshot.empty) { listContainer.innerHTML = "<div style='text-align:center; color:#ccc; margin-top:50px;'>기록 없음</div>"; return; }
-        let historyData = [];
-        querySnapshot.forEach(doc => historyData.push({ id: doc.id, ...doc.data() }));
-        historyData.sort((a, b) => b.timestamp.seconds - a.timestamp.seconds);
-        historyData.forEach(data => {
-            const items = data.items; const card = document.createElement('div'); card.className = 'history-card';
-            const dateObj = data.timestamp.toDate(); 
-            const timeStr = `${dateObj.getHours()}:${String(dateObj.getMinutes()).padStart(2, '0')}`;
-            let itemsHtml = "";
-            items.forEach(item => { itemsHtml += `<div class="history-item-row"><span>${item.product.name} <span style="color:#888; font-size:0.85rem;">(${item.product.company})</span> <span style="color:#666;">(${item.optionName})</span></span><strong>${item.qty}개</strong></div>`; });
-            card.innerHTML = `<div class="history-time">⏰ ${timeStr} (총 ${items.length}품목)</div><div style="border-top:1px solid #eee; margin-top:5px; padding-top:5px;">${itemsHtml}</div>`;
-            listContainer.appendChild(card);
-        });
-    } catch (e) { console.error(e); }
-}
-
 // 탭 전환
 const menuItems = document.querySelectorAll('.menu-item');
 const pages = document.querySelectorAll('.content-group');
@@ -902,7 +665,7 @@ menuItems.forEach(item => {
     });
 });
 
-// 초기 실행
+// [12] 초기 실행
 loadProducts();
 subscribeToRecentLogs();
 subscribeToPhotoRequests();
