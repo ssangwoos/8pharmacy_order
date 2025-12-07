@@ -407,27 +407,62 @@ async function loadSuppliers() {
     } catch (e) { console.error(e); }
 }
 
-// [New] 거래처 리스트 렌더링 (검색 및 SMS 버튼 추가)
+/* ==========================================================================
+   [수정된 함수 1] 거래처 리스트 렌더링 (PC/모바일 구분 클릭 이벤트)
+   ========================================================================== */
 function renderSupplierList(suppliersToRender) {
     const listContainer = document.getElementById('supplier-list');
-    listContainer.innerHTML = "";
-    if(suppliersToRender.length === 0) { listContainer.innerHTML = "<div style='text-align:center; padding:20px; color:#aaa;'>결과 없음</div>"; return; }
+    if(!listContainer) return;
     
+    listContainer.innerHTML = "";
+    
+    if(suppliersToRender.length === 0) {
+        listContainer.innerHTML = "<div style='text-align:center; padding:20px; color:#aaa;'>검색 결과가 없습니다.</div>";
+        return;
+    }
+
     suppliersToRender.sort((a, b) => a.name.localeCompare(b.name));
 
     suppliersToRender.forEach(sup => {
-        const div = document.createElement('div'); div.className = 'supplier-card';
+        const div = document.createElement('div');
+        div.className = 'supplier-card';
+        
         let tagsHtml = "";
         const products = sup.products || [];
-        products.slice(0, 10).forEach(p => tagsHtml += `<span class="product-tag-chip" onclick="event.stopPropagation(); triggerTagAction('${p.id}')">#${p.name}</span>`);
+        products.slice(0, 10).forEach(p => {
+            tagsHtml += `<span class="product-tag-chip" onclick="event.stopPropagation(); triggerTagAction('${p.id}')">#${p.name}</span>`;
+        });
         if(products.length > 10) tagsHtml += `<span style="font-size:0.7rem; color:#888;">+${products.length - 10} more</span>`;
-        if(products.length === 0) tagsHtml = `<span style="font-size:0.75rem; color:#ccc;">상품 없음</span>`;
-        
-        // [New] 리스트에 문자 버튼 추가
-        const smsBtn = sup.curManagerPhone ? `<a href="sms:${sup.curManagerPhone}" onclick="event.stopPropagation()" class="btn-sms" style="margin-left:5px; font-size:1rem; width:24px; height:24px; background:#2ecc71;">✉️</a>` : '';
+        if(products.length === 0) tagsHtml = `<span style="font-size:0.75rem; color:#ccc;">등록 상품 없음</span>`;
 
-        div.innerHTML = `<div class="sup-header"><div class="sup-name">${sup.name}</div></div><div class="sup-manager-info" style="display:flex; align-items:center;">👤 ${sup.curManagerName || '-'} (${sup.curManagerPhone || '-'}) ${smsBtn}</div><div class="sup-product-tags">${tagsHtml}</div>`;
-        div.addEventListener('click', () => { document.querySelectorAll('.supplier-card').forEach(c => c.classList.remove('active')); div.classList.add('active'); fillSupplierForm(sup); });
+        // [New] 문자 버튼 생성 (href는 비워두고 클릭 이벤트로 제어)
+        const smsBtnHtml = sup.curManagerPhone ? `<button class="btn-sms-list" data-phone="${sup.curManagerPhone}" style="margin-left:5px; font-size:1rem; width:28px; height:28px; background:#2ecc71; border:none; border-radius:50%; color:white; cursor:pointer;">✉️</button>` : '';
+
+        div.innerHTML = `
+            <div class="sup-header"><div class="sup-name">${sup.name}</div></div>
+            <div class="sup-manager-info" style="display:flex; align-items:center;">
+                👤 ${sup.curManagerName || '-'} (${sup.curManagerPhone || '-'}) 
+                ${smsBtnHtml}
+            </div>
+            <div class="sup-product-tags">${tagsHtml}</div>
+        `;
+        
+        // 카드 클릭 시 상세 정보
+        div.addEventListener('click', () => {
+            document.querySelectorAll('.supplier-card').forEach(c => c.classList.remove('active'));
+            div.classList.add('active');
+            fillSupplierForm(sup);
+        });
+
+        // [New] 문자 버튼 클릭 이벤트 (PC/모바일 분기)
+        const smsBtn = div.querySelector('.btn-sms-list');
+        if(smsBtn) {
+            smsBtn.addEventListener('click', (e) => {
+                e.stopPropagation(); // 카드 클릭 방지
+                handleSmsClick(sup.curManagerPhone);
+            });
+        }
+        
         listContainer.appendChild(div);
     });
 }
@@ -446,7 +481,9 @@ if(supplierSearchInput) {
     });
 }
 
-// [수정] 상세 폼 채우기 (문자 버튼 업데이트)
+/* ==========================================================================
+   [수정된 함수 2] 상세 폼 채우기 (문자 버튼 로직 적용)
+   ========================================================================== */
 function fillSupplierForm(sup) {
     currentSupplierId = sup.id;
     document.getElementById('supplier-form-title').textContent = `${sup.name} 수정`;
@@ -461,13 +498,52 @@ function fillSupplierForm(sup) {
     document.getElementById('sup-prev-phone').value = sup.prevManagerPhone || "";
     document.getElementById('btn-delete-supplier').style.display = "block";
     
-    // [New] 문자 버튼 업데이트
+    // 문자 버튼 업데이트 (오른쪽 상세화면)
     const smsBtn = document.getElementById('btn-sms-cur');
+    if(!smsBtn) {
+        // 버튼이 HTML에 없다면 동적으로 생성해서 넣어줌 (안전장치)
+        const container = document.getElementById('sup-cur-phone').parentNode;
+        const newLink = document.createElement('a');
+        newLink.id = 'btn-sms-cur';
+        // 스타일은 CSS .btn-sms 클래스나 인라인으로 처리
+        newLink.style.cssText = "display:none; align-items:center; justify-content:center; width:40px; background:#2ecc71; border-radius:4px; text-decoration:none; font-size:1.2rem; cursor:pointer;";
+        newLink.innerText = "✉️";
+        container.appendChild(newLink);
+    }
+    
+    const targetBtn = document.getElementById('btn-sms-cur');
     if(sup.curManagerPhone) {
-        smsBtn.href = `sms:${sup.curManagerPhone}`;
-        smsBtn.style.display = 'flex';
+        targetBtn.style.display = 'flex';
+        // 기존 리스너 제거를 위해 복제
+        const newBtn = targetBtn.cloneNode(true);
+        targetBtn.parentNode.replaceChild(newBtn, targetBtn);
+        
+        newBtn.addEventListener('click', (e) => {
+            e.preventDefault(); // 기본 이동 막기
+            handleSmsClick(sup.curManagerPhone);
+        });
     } else {
-        smsBtn.style.display = 'none';
+        targetBtn.style.display = 'none';
+    }
+}
+
+/* ==========================================================================
+   [New] 공통 문자 처리 함수 (PC:복사 / 모바일:앱실행) - ★ 핵심 ★
+   ========================================================================== */
+function handleSmsClick(phoneNumber) {
+    // 모바일 여부 체크 (간단한 정규식)
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
+    if (isMobile) {
+        // 모바일이면 문자 앱 실행
+        window.location.href = `sms:${phoneNumber}`;
+    } else {
+        // PC면 클립보드 복사
+        navigator.clipboard.writeText(phoneNumber).then(() => {
+            alert(`전화번호(${phoneNumber})가 복사되었습니다.\nPC 메신저 등에 붙여넣기 하세요.`);
+        }).catch(err => {
+            alert(`복사 실패: ${phoneNumber}`);
+        });
     }
 }
 // (나머지 관리자 함수들 유지)
