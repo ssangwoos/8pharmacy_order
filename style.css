@@ -180,4 +180,31 @@ footer.bottom-footer { height: 40px; background-color: #333; color: #ccc; displa
     #photo-grid { display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: 8px !important; width: 100% !important; padding-bottom: 100px !important; }
     .order-book-item { width: 100% !important; aspect-ratio: 1 / 1 !important; height: auto !important; }
     #product-form-body { overflow: visible !important; }
+    /* [수정] 거래처 관리 페이지 모바일 최적화 */
+    #page-supplier-mgmt > div {
+        flex-direction: column !important; /* 가로 -> 세로 배치 */
+        height: auto !important; /* 전체 높이 자동 조절 */
+        overflow: visible !important; /* 스크롤 잘림 방지 */
+    }
+
+    /* 리스트 영역 & 상세 폼 영역 */
+    .supplier-list-wrapper, 
+    .supplier-detail-wrapper {
+        width: 100% !important; /* 가로 꽉 차게 */
+        max-width: 100% !important;
+        height: auto !important; /* 높이 내용만큼 늘어나게 */
+        flex: none !important; /* 유연성 해제 (고정 크기 방지) */
+        margin-bottom: 20px; /* 두 영역 사이 간격 */
+    }
+    
+    /* 상세 폼 내부 스크롤 해제 */
+    .supplier-detail-wrapper {
+        overflow: visible !important;
+    }
+    
+    /* 검색창 & 리스트 높이 제한 (너무 길어지지 않게) */
+    .supplier-list-wrapper {
+        max-height: 400px; /* 리스트는 적당히 스크롤되게 */
+        overflow-y: auto !important;
+    }
 }
