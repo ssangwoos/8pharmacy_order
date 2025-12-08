@@ -695,6 +695,65 @@ menuItems.forEach(item => {
     });
 });
 
+/* ==========================================================================
+   [추가] 거래처 퀵 등록 기능 (누락분 복구)
+   ========================================================================== */
+const btnQuickSupOpen = document.getElementById('btn-quick-sup-open');
+const quickSupModal = document.getElementById('quick-sup-modal');
+const btnQuickSupCancel = document.getElementById('btn-quick-sup-cancel');
+const btnQuickSupSave = document.getElementById('btn-quick-sup-save');
+
+// 1. 퀵 등록 모달 열기
+if (btnQuickSupOpen && quickSupModal) {
+    btnQuickSupOpen.addEventListener('click', (e) => {
+        e.preventDefault(); // 버튼 기본 동작 방지
+        quickSupModal.style.display = 'flex';
+        document.getElementById('quick-sup-name').value = ''; // 입력창 초기화
+        document.getElementById('quick-sup-name').focus(); // 포커스
+    });
+}
+
+// 2. 취소 (닫기)
+if (btnQuickSupCancel && quickSupModal) {
+    btnQuickSupCancel.addEventListener('click', () => {
+        quickSupModal.style.display = 'none';
+    });
+}
+
+// 3. 저장 (등록)
+if (btnQuickSupSave) {
+    btnQuickSupSave.addEventListener('click', async () => {
+        const nameInput = document.getElementById('quick-sup-name');
+        const name = nameInput.value.trim();
+
+        if (!name) {
+            alert("거래처 이름을 입력해주세요.");
+            return;
+        }
+
+        try {
+            // DB에 저장
+            await addDoc(collection(db, "suppliers"), { name: name });
+            alert("거래처가 등록되었습니다.");
+
+            // 모달 닫기
+            if(quickSupModal) quickSupModal.style.display = 'none';
+            nameInput.value = "";
+
+            // 드롭다운 및 리스트 새로고침
+            await loadSupplierDropdown(); 
+            await loadSuppliers();        
+
+            // (선택사항) 방금 등록한 거래처를 선택 상태로 만들기
+            const select = document.getElementById('reg-company');
+            if (select) select.value = name;
+
+        } catch (e) {
+            console.error("거래처 등록 실패:", e);
+            alert("등록 중 오류가 발생했습니다.");
+        }
+    });
+}
 // [12] 초기 실행
 loadProducts();
 subscribeToRecentLogs();
