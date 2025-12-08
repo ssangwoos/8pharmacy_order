@@ -98,11 +98,24 @@ header.top-header { height: 60px; background-color: #fff; border-bottom: 1px sol
 footer.bottom-footer { height: 40px; background-color: #333; color: #ccc; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; flex-shrink: 0; }
 
 /* [8] 기타 */
-.option-input-row { display: flex; gap: 10px; align-items: center; }
-.option-input-row input { padding: 10px; border: 1px solid #ddd; border-radius: 4px; min-width: 0; }
-.option-input-row .opt-name { flex: 2; }
-.option-input-row .opt-price { flex: 1; }
-.btn-remove-row { width: 35px; height: 38px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+/* [수정] 옵션 입력 행 스타일 (입수량 칸 추가로 비율 조정) */
+.option-input-row { display: flex; gap: 5px; align-items: center; }
+
+.option-input-row input { 
+    padding: 10px; 
+    border: 1px solid #ddd; 
+    border-radius: 4px; 
+    min-width: 0; 
+    text-align: center; /* 숫자 보기 좋게 가운데 정렬 */
+}
+/* 옵션명 (왼쪽 정렬) */
+.option-input-row .opt-name { flex: 2; text-align: left; }
+/* 입수량 */
+.option-input-row .opt-count { flex: 1; } 
+/* 가격 */
+.option-input-row .opt-price { flex: 1.5; text-align: right; }
+
+.btn-remove-row { width: 35px; height: 38px; background-color: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .supplier-card { border: 1px solid #eee; border-radius: 6px; padding: 12px 15px; background: #fff; cursor: pointer; transition: all 0.2s; border-left: 4px solid transparent; margin-bottom: 10px; }
 .supplier-card:hover { box-shadow: 0 4px 10px rgba(0,0,0,0.08); transform: translateY(-2px); }
 .supplier-card.active { border-left-color: #2980b9; background-color: #f8fbff; border-color: #b6d4fe; }
@@ -206,5 +219,95 @@ footer.bottom-footer { height: 40px; background-color: #333; color: #ccc; displa
     .supplier-list-wrapper {
         max-height: 400px; /* 리스트는 적당히 스크롤되게 */
         overflow-y: auto !important;
+    }
+}
+
+/* ==========================================================================
+   [추가] 달력 스타일 (누락 방지용)
+   ========================================================================== */
+.calendar-wrapper {
+    width: 350px;
+    flex-shrink: 0;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.calendar-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.calendar-days {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    text-align: center;
+    margin-bottom: 10px;
+    font-weight: bold;
+    color: #666;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    row-gap: 10px;
+    text-align: center;
+    min-height: 200px; /* 높이 확보 */
+}
+
+.calendar-date {
+    height: 40px;
+    line-height: 40px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.calendar-date:hover {
+    background-color: #f0f8ff;
+    color: #3498db;
+    font-weight: bold;
+}
+
+.calendar-date.selected {
+    background-color: #3498db;
+    color: white;
+    font-weight: bold;
+}
+
+.calendar-date.today {
+    border: 2px solid #3498db;
+}
+
+.calendar-date.empty {
+    cursor: default;
+    pointer-events: none;
+}
+
+/* 데이터가 있는 날짜 표시 (파란 점) */
+.calendar-date.has-data::after {
+    content: '';
+    position: absolute;
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 4px;
+    height: 4px;
+    background-color: #e74c3c;
+    border-radius: 50%;
+}
+
+/* 모바일 반응형에서 달력 너비 조정 */
+@media screen and (max-width: 768px) {
+    .calendar-wrapper {
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box;
     }
 }

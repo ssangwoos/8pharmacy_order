@@ -116,14 +116,7 @@
                 <button id="btn-new-supplier" style="padding:8px 15px; background:#2980b9; color:white; border:none; border-radius:4px; cursor:pointer;">+ 신규 등록</button>
             </div>
             <div style="display:flex; gap:20px; flex-grow:1; overflow:hidden;">
-                <div class="supplier-list-wrapper" style="flex:1; background:#fff; border:1px solid #ddd; border-radius:8px; display:flex; flex-direction:column;">
-                    <div style="padding:15px; border-bottom:1px solid #eee; background:#f9f9f9;">
-                        <input type="text" id="supplier-search" placeholder="거래처명, 약품명 검색..." style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;">
-                    </div>
-                    <div id="supplier-list" style="flex:1; overflow-y:auto; padding:15px; display:flex; flex-direction:column; gap:8px;">
-                        <div style="text-align:center; padding:20px; color:#aaa;">로딩중...</div>
-                    </div>
-                </div>
+                <div class="supplier-list-wrapper" style="flex:1; background:#fff; border:1px solid #ddd; border-radius:8px; display:flex; flex-direction:column;"><div style="padding:15px; border-bottom:1px solid #eee; background:#f9f9f9;"><input type="text" id="supplier-search" placeholder="검색..." style="width:100%; padding:10px; border:1px solid #ddd; border-radius:4px;"></div><div id="supplier-list" style="flex:1; overflow-y:auto; padding:15px; display:flex; flex-direction:column; gap:8px;"><div style="text-align:center; padding:20px; color:#aaa;">로딩중...</div></div></div>
                 <div class="supplier-detail-wrapper" style="width:400px; flex-shrink:0; background:#fff; border:1px solid #ddd; border-radius:8px; padding:20px; overflow-y:auto; display:flex; flex-direction:column;">
                     <h3 id="supplier-form-title" style="margin-bottom:20px; color:#333;">상세 정보</h3>
                     <div class="form-group" style="margin-bottom:15px;"><label style="display:block; font-weight:bold; margin-bottom:5px;">거래처명</label><input type="text" id="sup-name" style="width:100%; padding:8px; border:1px solid #ccc;"></div>
@@ -138,13 +131,11 @@
                         </div>
                     </div>
                     
-                    <div style="background:#eee; padding:15px; border-radius:6px; margin-bottom:20px;">
-                        <label style="display:block; font-weight:bold; color:#666; margin-bottom:5px;">🏚 이전 담당자</label>
-                        <input type="text" id="sup-prev-manager" placeholder="이름" style="width:100%; padding:8px; margin-bottom:5px;">
-                        <input type="text" id="sup-prev-phone" placeholder="연락처" style="width:100%; padding:8px;">
+                    <div style="background:#eee; padding:15px; border-radius:6px; margin-bottom:20px;"><label style="display:block; font-weight:bold; color:#666; margin-bottom:5px;">🏚 이전 담당자</label><input type="text" id="sup-prev-manager" placeholder="이름" style="width:100%; padding:8px; margin-bottom:5px;"><input type="text" id="sup-prev-phone" placeholder="연락처" style="width:100%; padding:8px;"></div>
+                    <div style="display:flex; gap:10px; margin-top:auto;">
+                        <button id="btn-save-supplier" style="flex:1; padding:12px; background:#27ae60; color:white; border:none; font-weight:bold;">저장</button>
+                        <button id="btn-delete-supplier" style="padding:12px; background:#e74c3c; color:white; border:none;">삭제</button>
                     </div>
-                    
-                    <div style="display:flex; gap:10px; margin-top:auto;"><button id="btn-save-supplier" style="flex:1; padding:12px; background:#27ae60; color:white; border:none; font-weight:bold;">저장</button><button id="btn-delete-supplier" style="padding:12px; background:#e74c3c; color:white; border:none;">삭제</button></div>
                 </div>
             </div>
         </div>
@@ -161,7 +152,18 @@
                             <div><label style="font-weight:bold; display:block; margin-bottom:5px;">카테고리</label><select id="reg-category" style="width:100%; padding:10px; border:1px solid #ccc;"><option value="전문의약품">전문의약품</option><option value="일반의약품" selected>일반의약품</option><option value="의약외품">의약외품</option></select></div>
                             <div><label style="font-weight:bold; display:block; margin-bottom:5px;">제약회사</label><div style="display:flex; gap:8px;"><select id="reg-company" style="flex:1; padding:10px; border:1px solid #ccc;"><option value="">선택</option></select><button id="btn-quick-sup-open" style="padding:0 15px; background:#34495e; color:white; border:none;">+ 퀵등록</button></div></div>
                             <div><label style="font-weight:bold; display:block; margin-bottom:5px;">약품명</label><input type="text" id="reg-name" placeholder="예: 마이딜액 5%" style="width:100%; padding:10px; border:1px solid #ccc;"></div>
-                            <div style="background:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #e9ecef;"><label style="font-weight:bold; display:block; margin-bottom:10px;">주문 옵션 및 가격</label><div style="display:flex; gap:10px; margin-bottom:5px; color:#888;"><span style="flex:2;">옵션명</span><span style="flex:1;">가격</span><span style="width:35px;"></span></div><div id="reg-options-container" style="display:flex; flex-direction:column; gap:8px;"></div><button id="btn-add-option-row" style="width:100%; padding:8px; margin-top:10px; border:1px dashed #aaa; background:#fff;">+ 옵션 추가</button></div>
+                            
+                            <div style="background:#f8f9fa; padding:15px; border-radius:8px; border:1px solid #e9ecef;">
+                                <label style="font-weight:bold; display:block; margin-bottom:10px;">주문 옵션 및 가격</label>
+                                <div style="display:flex; gap:5px; margin-bottom:5px; font-size:0.8rem; color:#888;">
+                                    <span style="flex:2;">옵션명 (단위)</span>
+                                    <span style="flex:1;">입수량</span>
+                                    <span style="flex:1.5;">가격 (원)</span>
+                                    <span style="width:35px;"></span>
+                                </div>
+                                <div id="reg-options-container" style="display:flex; flex-direction:column; gap:8px;"></div>
+                                <button id="btn-add-option-row" style="width:100%; padding:8px; margin-top:10px; border:1px dashed #aaa; background:#fff;">+ 옵션 추가</button>
+                            </div>
                             <div style="height: 10px;"></div>
                         </div>
                     </div>
@@ -196,7 +198,7 @@
         <div id="viewer-buttons" style="margin-top:15px; display:flex; gap:10px;"></div>
     </div>
 
-    <div id="upload-confirm-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:99999; align-items:center; justify-content:center; flex-direction:column;">
+    <div id="upload-confirm-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); z-index:999999; align-items:center; justify-content:center; flex-direction:column;">
         <div style="background:white; padding:20px; border-radius:10px; width:90%; max-width:400px; text-align:center;">
             <h3>📸 사진 주문 요청</h3>
             <div style="margin:15px 0; max-height:300px; overflow:hidden; border-radius:8px; border:1px solid #eee;">
