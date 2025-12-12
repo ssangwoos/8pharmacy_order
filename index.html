@@ -140,8 +140,26 @@
             </div>
         </div>
 
-        <div id="page-return-mgmt" class="content-group" style="display: none; padding: 20px; flex-grow: 1;"><h2>↩️ 반품 관리</h2><p>준비중...</p></div>
-
+        <div id="page-return-mgmt" class="content-group" style="display: none; padding: 0; flex-grow: 1; flex-direction:column;">
+            <div class="panel-header" style="height:auto; display:block;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h2>↩️ 반품 현황 (<span id="return-total-count">0</span>)</h2>
+                    <button id="btn-open-return-modal" style="padding:8px 15px; background:#e67e22; color:white; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">+ 반품 등록</button>
+                </div>
+                <div class="return-filter-bar" style="display:flex; gap:5px; flex-wrap:wrap; background:#f1f2f6; padding:10px; border-radius:4px;">
+                    <input type="date" id="ret-search-start" style="padding:6px; border:1px solid #ddd; border-radius:4px;">
+                    <span style="align-self:center; color:#888;">~</span>
+                    <input type="date" id="ret-search-end" style="padding:6px; border:1px solid #ddd; border-radius:4px;">
+                    <input type="text" id="ret-search-keyword" placeholder="약품명, 거래처 검색" style="flex:1; min-width:150px; padding:6px; border:1px solid #ddd; border-radius:4px;">
+                    <button id="btn-ret-search" style="padding:6px 15px; background:#34495e; color:white; border:none; border-radius:4px; cursor:pointer;">검색</button>
+                    <button id="btn-ret-reset" style="padding:6px 10px; background:#95a5a6; color:white; border:none; border-radius:4px; cursor:pointer;">↻</button>
+                </div>
+            </div>
+            
+            <div id="return-list-container" style="padding:20px; display:grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap:15px; overflow-y:auto; padding-bottom:50px;">
+                <div style="text-align:center; color:#aaa; padding:50px; grid-column:1/-1;">불러오는 중...</div>
+            </div>
+        </div>
         <div id="page-product-mgmt" class="content-group" style="display: none; padding: 20px; flex-grow: 1; flex-direction:column; height: 100%; overflow: hidden;">
             <h2 style="margin-bottom:15px; border-bottom:2px solid #333; padding-bottom:10px; flex-shrink: 0;">🛠 상품 등록 및 관리</h2>
             <div style="display:flex; gap:20px; flex: 1; min-height: 0;">
@@ -233,6 +251,53 @@
 
     <div id="loading-spinner" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999999; align-items:center; justify-content:center; flex-direction:column; color:white;">
         <div class="spinner" style="border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom:15px;"></div><div>처리 중...</div>
+    </div>
+
+    <div id="return-register-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:10000; align-items:center; justify-content:center;">
+        <div style="background:white; width:90%; max-width:450px; padding:25px; border-radius:10px; max-height:90vh; overflow-y:auto;">
+            <h3 style="margin-bottom:20px; text-align:center; color:#e67e22;">↩️ 반품 등록</h3>
+            
+            <div style="display:flex; flex-direction:column; gap:12px;">
+                <div><label style="font-weight:bold; font-size:0.9rem;">약품명</label><input type="text" id="ret-name" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px;"></div>
+                <div><label style="font-weight:bold; font-size:0.9rem;">제조사</label><input type="text" id="ret-maker" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px;"></div>
+                <div>
+                    <label style="font-weight:bold; font-size:0.9rem;">반품처</label>
+                    <div style="display:flex; gap:5px;">
+                        <select id="ret-supplier" style="flex:1; padding:10px; border:1px solid #ccc; border-radius:4px;"><option value="">선택</option></select>
+                        <button id="btn-ret-quick-sup" style="padding:0 12px; background:#34495e; color:white; border:none; border-radius:4px;">+</button>
+                    </div>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <div style="flex:1;"><label style="font-weight:bold; font-size:0.9rem;">수량</label><input type="number" id="ret-qty" value="1" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px;"></div>
+                    <div style="flex:1;">
+                        <label style="font-weight:bold; font-size:0.9rem;">상태</label>
+                        <select id="ret-pkg-type" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px;"><option value="box">📦 완통</option><option value="open">💊 낱알</option></select>
+                    </div>
+                </div>
+                <div>
+                    <label style="font-weight:bold; font-size:0.9rem;">반품 사유</label>
+                    <select id="ret-reason" style="width:100%; padding:10px; border:1px solid #ccc; border-radius:4px;">
+                        <option value="유효기간">📅 유효기간 경과/임박</option><option value="파손/불량">💔 파손/불량</option><option value="주문착오">🤔 주문 착오</option><option value="회수">🚨 회수 (리콜)</option><option value="기타">💬 기타</option>
+                    </select>
+                </div>
+                
+                <div style="border:1px dashed #ccc; padding:10px; border-radius:6px; text-align:center; background:#f9f9f9;">
+                    <label for="ret-img-input" style="cursor:pointer; display:block; color:#555; font-size:0.9rem;">
+                        <span id="ret-img-label">📸 증빙 사진 첨부 (선택)</span>
+                    </label>
+                    <input type="file" id="ret-img-input" accept="image/*" style="display:none;">
+                    <div style="position:relative; display:inline-block;">
+                        <img id="ret-img-preview" src="" style="max-width:100%; max-height:150px; display:none; margin-top:5px; border-radius:4px;">
+                        <button id="btn-ret-img-clear" style="display:none; position:absolute; top:-5px; right:-5px; background:red; color:white; border:none; border-radius:50%; width:20px; height:20px; cursor:pointer;">&times;</button>
+                    </div>
+                </div>
+
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    <button id="btn-ret-cancel" style="flex:1; padding:12px; background:#eee; border:none; border-radius:4px;">취소</button>
+                    <button id="btn-ret-save" style="flex:1; padding:12px; background:#e67e22; color:white; border:none; border-radius:4px; font-weight:bold;">등록하기</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <input type="file" id="file-input-camera" accept="image/*" capture="environment" style="display:none;">
